@@ -1,0 +1,59 @@
+{
+  "_comment": [
+    "Pinned CPython builds for the LAST-RESORT bootstrap path in bin/ensure_python.*.",
+    "",
+    "This is only reached when no usable Python already exists on the machine AND the user",
+    "has explicitly consented to a download. A system Python is always preferred; the audit",
+    "runs fine with no Python at all.",
+    "",
+    "Builds are python-build-standalone (the relocatable CPython distribution uv uses).",
+    "'install_only' archives contain a complete stdlib and need no compilation or installer.",
+    "",
+    "Every archive is verified against the SHA-256 below BEFORE anything is extracted or",
+    "executed. The checksums were taken from the release's signed SHA256SUMS manifest.",
+    "An archive that does not match is deleted and the bootstrap fails closed - it is never",
+    "extracted 'anyway'. A pinned version plus a verified hash is what separates this from",
+    "piping a download into a shell, which this skill's own CFG-CI-02 rule flags as a finding.",
+    "",
+    "To upgrade: pick a newer python-build-standalone release, copy its SHA256SUMS entries",
+    "here verbatim, and bump 'version' and 'release'. Do not hand-edit a hash."
+  ],
+  "schemaVersion": "1.0",
+  "version": "3.12.14",
+  "release": "20260901",
+  "minimumPythonVersion": [3, 9],
+  "baseUrl": "https://github.com/astral-sh/python-build-standalone/releases/download/20260901/",
+  "sizeNoteMB": "25-40 MB compressed per platform; extracted into the user cache, never into the skill folder.",
+  "platforms": {
+    "windows-x86_64": {
+      "file": "cpython-3.12.14+20260901-x86_64-pc-windows-msvc-install_only.tar.gz",
+      "sha256": "e90c1b6419da3bd812dd73bb3de40287a21abf153438147639ec5e20375ea93f",
+      "exe": "python/python.exe"
+    },
+    "windows-arm64": {
+      "file": "cpython-3.12.14+20260901-aarch64-pc-windows-msvc-install_only.tar.gz",
+      "sha256": "4e852236277eb8f7105cbe0f5adf45592f521af238bc0f700c351856e2c2e41a",
+      "exe": "python/python.exe"
+    },
+    "darwin-arm64": {
+      "file": "cpython-3.12.14+20260901-aarch64-apple-darwin-install_only.tar.gz",
+      "sha256": "3ee3ee547cedfeb7c2b16b2b7156039f7b470bb8f857e226fd3d2eb11db83c76",
+      "exe": "python/bin/python3"
+    },
+    "darwin-x86_64": {
+      "file": "cpython-3.12.14+20260901-x86_64-apple-darwin-install_only.tar.gz",
+      "sha256": "2e31b23f3f1319f707d0e620b48847a0046577541d357276821f9f1b5492e0ba",
+      "exe": "python/bin/python3"
+    },
+    "linux-x86_64": {
+      "file": "cpython-3.12.14+20260901-x86_64-unknown-linux-gnu-install_only.tar.gz",
+      "sha256": "936c246dfdbbfa7cb22dd01814a21f582a892689fae96b06071a5e433baffa22",
+      "exe": "python/bin/python3"
+    },
+    "linux-aarch64": {
+      "file": "cpython-3.12.14+20260901-aarch64-unknown-linux-gnu-install_only.tar.gz",
+      "sha256": "b61b856c3e1a4fc65b8f6e6b0495ef975dd0924f90c59f3ea61b38a079173b84",
+      "exe": "python/bin/python3"
+    }
+  }
+}

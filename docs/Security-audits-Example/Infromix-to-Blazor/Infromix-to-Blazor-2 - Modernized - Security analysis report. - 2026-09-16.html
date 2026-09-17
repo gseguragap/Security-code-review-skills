@@ -1,0 +1,2010 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Security analysis report</title>
+<style>
+/* ============================================================================
+   Security analysis report - self-contained stylesheet.
+   No external fonts, no CDN, no network. Opens from disk in any browser.
+   Palette: dataviz reference instance (categorical slots 1-2 + status roles),
+   used verbatim - the documented, validated default.
+   ========================================================================= */
+
+:root {
+  color-scheme: light;
+
+  --surface-0:      #f4f4f1;   /* page ground   */
+  --surface-1:      #fcfcfb;   /* card / chart  */
+  --surface-2:      #eeeeea;   /* inset, code   */
+  --border:         #dcdcd6;
+  --border-strong:  #c3c2b7;
+
+  --text-primary:   #0b0b0b;
+  --text-secondary: #52514e;
+  --text-muted:     #78776f;
+
+  /* categorical - fixed order, never cycled */
+  --series-1:       #2a78d6;   /* Current   */
+  --series-2:       #eb6834;   /* Projected */
+
+  /* status - reserved roles, always paired with an icon + label */
+  --st-good:        #0ca30c;
+  --st-warning:     #fab219;
+  --st-serious:     #ec835a;
+  --st-critical:    #d03b3b;
+  --st-neutral:     #78776f;
+
+  --grid:           #e6e6e1;
+  --shadow:         0 1px 2px rgba(0,0,0,.05), 0 4px 12px rgba(0,0,0,.04);
+  --radius:         10px;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --surface-0:      #121211;
+    --surface-1:      #1a1a19;
+    --surface-2:      #232322;
+    --border:         #33332f;
+    --border-strong:  #4a4a45;
+    --text-primary:   #ffffff;
+    --text-secondary: #c3c2b7;
+    --text-muted:     #96958c;
+    --series-1:       #3987e5;
+    --series-2:       #d95926;
+    --grid:           #2b2b28;
+    --shadow:         0 1px 2px rgba(0,0,0,.4), 0 4px 12px rgba(0,0,0,.3);
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --surface-0:      #121211;
+  --surface-1:      #1a1a19;
+  --surface-2:      #232322;
+  --border:         #33332f;
+  --border-strong:  #4a4a45;
+  --text-primary:   #ffffff;
+  --text-secondary: #c3c2b7;
+  --text-muted:     #96958c;
+  --series-1:       #3987e5;
+  --series-2:       #d95926;
+  --grid:           #2b2b28;
+  --shadow:         0 1px 2px rgba(0,0,0,.4), 0 4px 12px rgba(0,0,0,.3);
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--surface-0);
+  color: var(--text-primary);
+  font: 15px/1.6 var(--sans);
+  padding: 0 0 5rem;
+}
+img { max-width: 100%; }
+[hidden] { display: none !important; }
+
+.wrap { max-width: 1160px; margin: 0 auto; padding: 0 24px; }
+
+/* ---------------------------------------------------------------- header */
+header.masthead {
+  background: var(--surface-1);
+  border-bottom: 1px solid var(--border);
+  padding: 28px 0 22px;
+  margin-bottom: 28px;
+}
+.masthead h1 { margin: 0 0 6px; font-size: 26px; line-height: 1.25; letter-spacing: -.02em; }
+.masthead .sub { color: var(--text-secondary); font-size: 14px; margin: 0; }
+.meta-grid {
+  display: grid; gap: 10px 28px; margin-top: 18px;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  font-size: 13px;
+}
+.meta-grid dt { color: var(--text-muted); font-size: 11px; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 2px; }
+.meta-grid dd { margin: 0; color: var(--text-primary); word-break: break-word; }
+
+.theme-toggle {
+  position: absolute; top: 20px; right: 24px;
+  background: var(--surface-2); color: var(--text-secondary);
+  border: 1px solid var(--border); border-radius: 999px;
+  padding: 6px 14px; font: inherit; font-size: 12px; cursor: pointer;
+}
+.theme-toggle:hover { border-color: var(--border-strong); color: var(--text-primary); }
+.masthead { position: relative; }
+
+/* ---------------------------------------------------------------- sections */
+section { margin: 0 0 38px; }
+h2 {
+  font-size: 13px; text-transform: uppercase; letter-spacing: .08em;
+  color: var(--text-muted); margin: 0 0 14px; font-weight: 600;
+}
+h3 { font-size: 17px; margin: 0 0 10px; letter-spacing: -.01em; }
+p  { margin: 0 0 12px; }
+
+.card {
+  background: var(--surface-1); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 20px; box-shadow: var(--shadow);
+}
+
+/* ---------------------------------------------------------------- score tiles */
+.score-row { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); }
+.tile {
+  background: var(--surface-1); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 18px 20px; box-shadow: var(--shadow);
+}
+.tile .label { font-size: 11px; text-transform: uppercase; letter-spacing: .07em; color: var(--text-muted); margin-bottom: 6px; }
+.tile .hero { font-size: 40px; line-height: 1; font-weight: 650; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+.tile .hero .of { font-size: 17px; font-weight: 400; color: var(--text-muted); letter-spacing: 0; }
+.tile .foot { margin-top: 8px; font-size: 13px; color: var(--text-secondary); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+.grade {
+  display: inline-block; font-weight: 650; font-size: 13px;
+  padding: 2px 9px; border-radius: 6px;
+  background: var(--surface-2); border: 1px solid var(--border-strong);
+}
+.posture { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 550; }
+.posture .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+.posture[data-band="Hardened"] .dot { background: var(--st-good); }
+.posture[data-band="Adequate"] .dot { background: var(--series-1); }
+.posture[data-band="At Risk"]  .dot { background: var(--st-warning); }
+.posture[data-band="Critical"] .dot { background: var(--st-critical); }
+
+.uplift { color: var(--st-good); font-weight: 650; font-variant-numeric: tabular-nums; }
+
+/* ---------------------------------------------------------------- severity KPI */
+.sev-row { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(112px, 1fr)); margin-top: 16px; }
+.sev-tile {
+  background: var(--surface-1); border: 1px solid var(--border);
+  border-left: 3px solid var(--st-neutral);
+  border-radius: 8px; padding: 12px 14px;
+}
+.sev-tile .n { font-size: 26px; font-weight: 650; line-height: 1; font-variant-numeric: tabular-nums; }
+.sev-tile .k { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-secondary); margin-top: 5px; display: flex; align-items: center; gap: 5px; }
+.sev-tile[data-sev="Critical"] { border-left-color: var(--st-critical); }
+.sev-tile[data-sev="High"]     { border-left-color: var(--st-serious); }
+.sev-tile[data-sev="Medium"]   { border-left-color: var(--st-warning); }
+.sev-tile[data-sev="Low"]      { border-left-color: var(--series-1); }
+.sev-tile[data-sev="Info"]     { border-left-color: var(--st-neutral); }
+
+/* ---------------------------------------------------------------- chart */
+.legend { display: flex; gap: 18px; align-items: center; font-size: 12.5px; color: var(--text-secondary); margin-bottom: 16px; flex-wrap: wrap; }
+.legend .key { display: inline-flex; align-items: center; gap: 7px; }
+.legend .swatch { width: 11px; height: 11px; border-radius: 3px; flex: none; }
+
+.bars { display: grid; gap: 14px; }
+.bar-row { display: grid; grid-template-columns: minmax(140px, 200px) 1fr; gap: 16px; align-items: center; }
+.bar-row .cat { font-size: 13px; color: var(--text-secondary); line-height: 1.3; }
+.bar-row .cat .wt { color: var(--text-muted); font-size: 11px; display: block; }
+.bar-stack { display: grid; gap: 2px; }              /* 2px surface gap between adjacent bars */
+.bar-line  { display: grid; grid-template-columns: 1fr 34px; gap: 8px; align-items: center; }
+.bar-track { position: relative; height: 13px; background: var(--grid); border-radius: 3px; }
+.bar-fill {
+  position: absolute; left: 0; top: 0; bottom: 0;
+  border-radius: 0 4px 4px 0;                        /* 4px rounded data-end, anchored to baseline */
+  min-width: 3px;
+}
+.bar-fill.s1 { background: var(--series-1); }
+.bar-fill.s2 { background: var(--series-2); }
+.bar-val {
+  font-size: 11.5px; font-variant-numeric: tabular-nums; color: var(--text-secondary);
+  text-align: right; white-space: nowrap;
+}
+.bar-row.na .bar-track { background: repeating-linear-gradient(135deg, var(--grid), var(--grid) 4px, transparent 4px, transparent 8px); }
+.bar-na { font-size: 11.5px; color: var(--text-muted); font-style: italic; padding-left: 2px; }
+
+/* ---------------------------------------------------------------- tables */
+table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+th { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--text-muted); font-weight: 600; white-space: nowrap; }
+tbody tr:last-child td { border-bottom: none; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+td.ctr, th.ctr { text-align: center; }
+td.id, th.id   { white-space: nowrap; width: 1%; }
+.table-scroll { overflow-x: auto; }
+
+.sev-pill {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 11.5px; font-weight: 600; padding: 2px 8px; border-radius: 999px;
+  border: 1px solid; white-space: nowrap;
+}
+.sev-pill[data-sev="Critical"] { color: var(--st-critical); border-color: var(--st-critical); }
+.sev-pill[data-sev="High"]     { color: var(--st-serious);  border-color: var(--st-serious); }
+.sev-pill[data-sev="Medium"]   { color: var(--st-warning);  border-color: var(--st-warning); }
+.sev-pill[data-sev="Low"]      { color: var(--series-1);    border-color: var(--series-1); }
+.sev-pill[data-sev="Info"]     { color: var(--text-muted);  border-color: var(--border-strong); }
+:root[data-theme="dark"] .sev-pill[data-sev="Medium"],
+:root:not([data-theme="light"]) .sev-pill[data-sev="Medium"] { color: var(--st-warning); }
+
+.tag {
+  display: inline-block; font-size: 11px; font-family: var(--mono);
+  background: var(--surface-2); border: 1px solid var(--border);
+  color: var(--text-secondary); padding: 1px 6px; border-radius: 4px; margin: 1px 3px 1px 0;
+  white-space: nowrap;
+}
+.conf { font-size: 11.5px; color: var(--text-secondary); }
+.conf[data-c="Possible"] { color: var(--st-warning); font-weight: 600; }
+
+/* ---------------------------------------------------------------- filters */
+.toolbar {
+  display: flex; gap: 10px; flex-wrap: wrap; align-items: center;
+  margin-bottom: 14px; padding: 12px 14px;
+  background: var(--surface-1); border: 1px solid var(--border); border-radius: var(--radius);
+}
+.toolbar input[type="search"], .toolbar select {
+  font: inherit; font-size: 13px; padding: 6px 10px;
+  background: var(--surface-2); color: var(--text-primary);
+  border: 1px solid var(--border); border-radius: 7px;
+}
+.toolbar input[type="search"] { min-width: 210px; flex: 1 1 210px; }
+.chip {
+  font: inherit; font-size: 12px; padding: 5px 11px; cursor: pointer;
+  background: var(--surface-2); color: var(--text-secondary);
+  border: 1px solid var(--border); border-radius: 999px;
+}
+.chip[aria-pressed="true"] { background: var(--text-primary); color: var(--surface-1); border-color: var(--text-primary); }
+.btn {
+  font: inherit; font-size: 12.5px; padding: 6px 13px; cursor: pointer;
+  background: var(--surface-2); color: var(--text-secondary);
+  border: 1px solid var(--border); border-radius: 7px;
+}
+.btn:hover { border-color: var(--border-strong); color: var(--text-primary); }
+.count-note { font-size: 12.5px; color: var(--text-muted); margin-left: auto; }
+
+/* ---------------------------------------------------------------- findings */
+.finding {
+  background: var(--surface-1); border: 1px solid var(--border);
+  border-radius: var(--radius); margin-bottom: 12px; box-shadow: var(--shadow);
+  overflow: hidden;
+}
+.finding.done { opacity: .62; }
+.finding > summary {
+  list-style: none; cursor: pointer; padding: 14px 18px;
+  display: grid; grid-template-columns: auto auto 1fr auto; gap: 12px; align-items: center;
+}
+.finding > summary::-webkit-details-marker { display: none; }
+.finding > summary:hover { background: var(--surface-2); }
+.finding .fid { font-family: var(--mono); font-size: 12px; color: var(--text-muted); }
+.finding .ftitle { display: block; font-weight: 550; font-size: 14.5px; line-height: 1.35; }
+.finding .fmeta  { display: block; font-size: 12px; color: var(--text-muted); margin-top: 3px; }
+.finding .chev { color: var(--text-muted); font-size: 12px; }
+.finding[open] .chev { transform: rotate(90deg); }
+.chev { display: inline-block; transition: transform .12s ease; }
+
+.fbody { padding: 4px 18px 20px; border-top: 1px solid var(--border); }
+.fblock { margin-top: 16px; }
+.fblock > .h {
+  font-size: 11px; text-transform: uppercase; letter-spacing: .07em;
+  color: var(--text-muted); font-weight: 600; margin-bottom: 6px;
+}
+.loc {
+  font-family: var(--mono); font-size: 12.5px;
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-left: 2px solid var(--border-strong);
+  border-radius: 6px; padding: 8px 11px; margin-bottom: 6px; overflow-x: auto;
+}
+.loc .path { color: var(--series-1); font-weight: 600; }
+.loc .code { display: block; margin-top: 4px; color: var(--text-secondary); white-space: pre; }
+
+pre.code {
+  font-family: var(--mono); font-size: 12.5px; line-height: 1.55;
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: 8px; padding: 12px 14px; overflow-x: auto; margin: 0;
+  white-space: pre;
+}
+.diff { display: grid; gap: 10px; grid-template-columns: 1fr 1fr; }
+@media (max-width: 800px) { .diff { grid-template-columns: 1fr; } }
+.diff .lbl { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted); margin-bottom: 5px; }
+.diff .before pre.code { border-left: 2px solid var(--st-critical); }
+.diff .after  pre.code { border-left: 2px solid var(--st-good); }
+
+ol.steps { margin: 0; padding-left: 20px; }
+ol.steps li { margin-bottom: 6px; }
+ul.plain { margin: 0; padding-left: 18px; }
+ul.plain li { margin-bottom: 5px; }
+
+.verify {
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-left: 3px solid var(--st-good);
+  border-radius: 7px; padding: 10px 13px; font-size: 13.5px;
+}
+.warnbox {
+  background: var(--surface-2); border: 1px solid var(--st-warning);
+  border-left: 3px solid var(--st-warning);
+  border-radius: 7px; padding: 10px 13px; font-size: 13.5px;
+}
+.kv { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px 20px; font-size: 13px; }
+.kv .k { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted); }
+
+.badge-nb {
+  font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px;
+  border: 1px solid var(--st-good); color: var(--st-good);
+}
+.badge-br {
+  font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px;
+  border: 1px solid var(--st-critical); color: var(--st-critical);
+}
+
+.chk { width: 16px; height: 16px; cursor: pointer; accent-color: var(--st-good); }
+
+/* ---------------------------------------------------------------- roadmap */
+.phase {
+  display: grid; grid-template-columns: auto 1fr auto; gap: 14px; align-items: start;
+  padding: 14px 0; border-bottom: 1px solid var(--border);
+}
+.phase:last-child { border-bottom: none; }
+.phase .pnum {
+  width: 28px; height: 28px; border-radius: 50%; flex: none;
+  background: var(--series-1); color: #fff;
+  display: grid; place-items: center; font-size: 13px; font-weight: 650;
+}
+.phase .pafter { font-size: 13px; color: var(--text-secondary); white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+/* ---------------------------------------------------------------- cost */
+.cost-caveat {
+  border-left: 3px solid var(--st-warning);
+  background: var(--surface-2); border-radius: 7px;
+  padding: 10px 13px; font-size: 13.5px; margin-bottom: 14px;
+}
+.cost-total { display: flex; gap: 28px; flex-wrap: wrap; align-items: baseline; margin-top: 14px; }
+.cost-total .big { font-size: 30px; font-weight: 650; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+
+/* ---------------------------------------------------------------- misc */
+footer.foot { color: var(--text-muted); font-size: 12.5px; border-top: 1px solid var(--border); padding-top: 16px; margin-top: 40px; }
+.empty { color: var(--text-muted); font-style: italic; padding: 18px; text-align: center; }
+a { color: var(--series-1); }
+
+/* ---------------------------------------------------------------- print */
+@media print {
+  :root { color-scheme: light; }
+  body { background: #fff; font-size: 10.5pt; padding: 0; }
+  .toolbar, .theme-toggle, .no-print { display: none !important; }
+  .card, .tile, .finding, .sev-tile { box-shadow: none; border: 1px solid #ccc; break-inside: avoid; }
+  .finding { break-inside: avoid; }
+  .fbody { display: block !important; }
+  section { break-inside: avoid-page; }
+  h2 { break-after: avoid; }
+  a { text-decoration: none; color: inherit; }
+  .wrap { max-width: none; padding: 0 8mm; }
+}
+</style>
+</head>
+<body>
+<script id="audit-data" type="application/json">
+{
+  "schemaVersion": "1.0",
+  "meta": {
+    "projectName": "Infromix-to-Blazor-2",
+    "targetPath": "Informix-demo-3- code",
+    "scanDate": "2026-09-16",
+    "analyst": "Claude Code - security-audit skill v1.0",
+    "depth": "standard",
+    "mode": "plan",
+    "variant": "modernized",
+    "variantLabel": "Modernized",
+    "standards": [
+      "OWASP Top 10 (2021)",
+      "CWE",
+      "MITRE ATT&CK v16",
+      "NIST SP 800-218 (SSDF v1.1)",
+      "NIST SP 800-53 Rev. 5"
+    ],
+    "stack": {
+      "languages": ["C#", "Razor"],
+      "frameworks": [".NET 10", "Blazor Server", "EF Core 10", "MudBlazor 8", "Serilog 9", "QuestPDF 2024.12"],
+      "dataStores": ["SQLite (stores7.db)"],
+      "entryPoints": ["Program.cs", "Pages/_Host.cshtml", "Pages/**/*.razor", "/health", "/_blazor"]
+    },
+    "inventory": {
+      "filesScanned": 83,
+      "linesScanned": 7955,
+      "filesSkipped": 12,
+      "skipReasons": ["obj/ build output", "SQLite database binaries", "stylesheet", "seed data files"]
+    },
+    "migration": {
+      "isMigration": true,
+      "sourceLanguage": "Informix 4GL",
+      "targetLanguage": "C# / Blazor Server",
+      "sourcePathAudited": "Informix source/source"
+    }
+  },
+  "scores": {
+    "profile": "default-v1",
+    "current": { "score": 65, "grade": "D", "posture": "At Risk" },
+    "projected": { "score": 93, "grade": "A", "posture": "Hardened" },
+    "categories": [
+      {
+        "key": "access-control",
+        "name": "Access Control",
+        "owasp": "A01",
+        "weight": 22,
+        "current": 18,
+        "projected": 90,
+        "assessed": true,
+        "note": "No authorization exists anywhere: zero [Authorize] attributes across 83 files, no authorization services registered, every page route and every mutation reachable anonymously over the network. 100 - (45 Critical + 25 High + 12 Medium) = 18."
+      },
+      {
+        "key": "injection",
+        "name": "Injection (SQL/OS)",
+        "owasp": "A03",
+        "weight": 14,
+        "current": 100,
+        "projected": 100,
+        "assessed": true,
+        "note": "Assessed and clean with positive evidence. All data access is EF Core LINQ over a strongly typed model; zero FromSqlRaw, ExecuteSqlRaw, raw ADO.NET commands or string-concatenated SQL across 6,808 lines of C#. The legacy shell escape was not carried across. This is the single largest improvement the migration delivered."
+      },
+      {
+        "key": "xss",
+        "name": "Cross-Site Scripting",
+        "owasp": "A03",
+        "weight": 8,
+        "current": 100,
+        "projected": 100,
+        "assessed": true,
+        "note": "Assessed and clean with positive evidence. Zero MarkupString, Html.Raw or innerHTML usages; Blazor's automatic output encoding is intact throughout. A Content-Security-Policy with a real per-request nonce and no 'unsafe-eval' is applied to every response."
+      },
+      {
+        "key": "misconfiguration",
+        "name": "Security Misconfiguration",
+        "owasp": "A05",
+        "weight": 13,
+        "current": 73,
+        "projected": 95,
+        "assessed": true,
+        "note": "The rate limiter partitions on a client-controlled header, the CSP omits three directives that default-src does not cover, the health endpoint is anonymous, and exception messages reach the UI. 100 - (12 + 5 + 5 + 5) = 73."
+      },
+      {
+        "key": "cryptographic",
+        "name": "Cryptographic Failures",
+        "owasp": "A02",
+        "weight": 10,
+        "current": 51,
+        "projected": 88,
+        "assessed": true,
+        "note": "The application binds plaintext HTTP on all interfaces, writes customer PII into rolling log files at Debug level, and ships an unencrypted SQLite database in the source tree. 100 - (25 High + 12 + 12) = 51."
+      },
+      {
+        "key": "validation",
+        "name": "Input Validation / Insecure Design",
+        "owasp": "A04",
+        "weight": 9,
+        "current": 46,
+        "projected": 92,
+        "assessed": true,
+        "note": "Order line items are never persisted and bypass both the validation and audit controls; financial totals are computed client-side against duplicated constants; legacy row caps were carried forward. 100 - (25 High + 12 + 12 + 5) = 46."
+      },
+      {
+        "key": "authentication",
+        "name": "Authentication Failures",
+        "owasp": "A07",
+        "weight": 8,
+        "current": 75,
+        "projected": 90,
+        "assessed": true,
+        "note": "No authentication mechanism of any kind is registered. Unlike the legacy system, there is no host or database login standing behind the application either. 100 - 25 High = 75."
+      },
+      {
+        "key": "logging",
+        "name": "Logging & Monitoring",
+        "owasp": "A09",
+        "weight": 7,
+        "current": 88,
+        "projected": 95,
+        "assessed": true,
+        "note": "Structured audit logging was added for every create, update and delete - a genuine improvement over the legacy system - but every entry records the actor as the literal string \"anonymous\". 100 - 12 = 88."
+      },
+      {
+        "key": "dependencies",
+        "name": "Vulnerable & Outdated Components",
+        "owasp": "A06",
+        "weight": 5,
+        "current": 88,
+        "projected": 90,
+        "assessed": true,
+        "note": "Nine direct dependencies inventoried from the .csproj, all on current major versions. A vulnerability scan script exists but no pipeline in the audited tree invokes it, and no advisory database was queried during this run. 100 - 12 = 88."
+      },
+      {
+        "key": "integrity",
+        "name": "Software & Data Integrity",
+        "owasp": "A08",
+        "weight": 2,
+        "current": 95,
+        "projected": 95,
+        "assessed": true,
+        "note": "Assessed, no findings, but no positive control evidence either: there is no lockfile, no package signature verification and no SBOM in the tree, so 95 rather than 100. The legacy tree's committed executables were not carried across."
+      },
+      {
+        "key": "ssrf",
+        "name": "Server-Side Request Forgery",
+        "owasp": "A10",
+        "weight": 2,
+        "current": 100,
+        "projected": 100,
+        "assessed": true,
+        "note": "Assessed and clean with positive evidence: no HttpClient is registered or constructed anywhere, and no outbound request, socket or webhook path exists. The only Uri usages parse the application's own navigation URL."
+      }
+    ]
+  },
+  "findings": [
+    {
+      "id": "M-1",
+      "title": "No authorization anywhere: every page and every mutation is reachable anonymously over the network",
+      "severity": "Critical",
+      "confidence": "Confirmed",
+      "category": "access-control",
+      "owasp": "A01:2021 Broken Access Control",
+      "cwe": ["CWE-862", "CWE-284"],
+      "attack": [{ "id": "T1190", "name": "Exploit Public-Facing Application" }],
+      "nist": { "ssdf": ["PW.1", "PW.5"], "sp80053": ["AC-3", "AC-6", "SC-7"] },
+      "status": "new",
+      "exposure": "internet-facing",
+      "locations": [
+        { "file": "Program.cs", "line": 132, "excerpt": "app.MapHealthChecks(\"/health\");\napp.MapBlazorHub();\napp.MapFallbackToPage(\"/_Host\");" },
+        { "file": "Pages/Customers/CustomerForm.razor", "line": 1, "excerpt": "@page \"/customers\"" },
+        { "file": "Pages/Orders/OrderForm.razor", "line": 1, "excerpt": "@page \"/orders\"" },
+        { "file": "Pages/Reports/Reports.razor", "line": 1, "excerpt": "@page \"/reports\"" },
+        { "file": "appsettings.json", "line": 5, "excerpt": "\"Kestrel\": { \"Endpoints\": { \"Http\": { \"Url\": \"http://0.0.0.0:5000\" } } }" }
+      ],
+      "evidence": "Absence check across the whole tree. Program.cs contains no AddAuthorization, no AddAuthentication, no UseAuthentication and no UseAuthorization; the middleware pipeline goes UseRouting -> UseSerilogRequestLogging -> SecurityHeadersMiddleware -> UseRateLimiter -> UseAntiforgery -> UseRequestLocalization and straight to the endpoint mappings. MapBlazorHub() at line 132 carries no .RequireAuthorization(). Zero [Authorize] and zero [AllowAnonymous] attributes appear in 83 files - the attribute is not used anywhere, in either direction. The five page routes (/, /customers, /orders, /stock, /reports) and the SignalR circuit at /_blazor are therefore all anonymous. Kestrel is configured to bind 0.0.0.0:5000, i.e. every network interface, and AllowedHosts is \"*\".",
+      "risk": "Anyone who can reach the port reads and modifies every customer, order and stock record. The concrete paths are already wired: /customers exposes create, update and delete over the customer table; /orders creates, updates and deletes orders; /reports exports the entire customer list as a PDF in one click (M-6). An anonymous visitor can also open a SignalR circuit and invoke server-side component logic directly. This is the finding that dominates the score, and it is the one control the legacy system had in a different form - the 4GL program at least required an OS account and an Informix session to start it (see the Comparison report). Binding 0.0.0.0 converts what was a single-host, single-terminal application into a network service with no front door.",
+      "impact": { "confidentiality": "High", "integrity": "High", "availability": "Medium" },
+      "remediated": false,
+      "remediation": {
+        "summary": "Register an identity provider and apply a global default-deny authorization policy, so every endpoint requires sign-in without touching a single page file.",
+        "nonBreaking": true,
+        "breakingChange": false,
+        "effort": "M",
+        "planned": true,
+        "steps": [
+          "Add AddAuthentication(...) with the identity provider the organisation already uses (AddOpenIdConnect for Entra ID / Okta, or AddCookie plus ASP.NET Core Identity if the app must own its users).",
+          "Add AddAuthorizationBuilder().SetFallbackPolicy(new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build()) - the fallback policy applies to every endpoint that does not declare its own, so no page needs editing.",
+          "Call app.UseAuthentication() and app.UseAuthorization() after UseRouting() and before UseAntiforgery().",
+          "Protect the circuit: app.MapBlazorHub().RequireAuthorization().",
+          "Mark the sign-in callback and the error page [AllowAnonymous]; handle /health separately under M-15.",
+          "Add <CascadingAuthenticationState> around the Router in App.razor so components can read the identity, and an <AuthorizeView> around the destructive toolbar actions once roles exist."
+        ],
+        "codeBefore": "app.UseRateLimiter();\napp.UseAntiforgery();\n\napp.MapHealthChecks(\"/health\");\napp.MapBlazorHub();\napp.MapFallbackToPage(\"/_Host\");",
+        "codeAfter": "app.UseAuthentication();\napp.UseAuthorization();\napp.UseRateLimiter();\napp.UseAntiforgery();\n\napp.MapHealthChecks(\"/health\").AllowAnonymous();\napp.MapBlazorHub().RequireAuthorization();\napp.MapFallbackToPage(\"/_Host\").RequireAuthorization();",
+        "language": "csharp"
+      },
+      "verification": "An unauthenticated GET http://localhost:5000/customers returns 302 to the sign-in endpoint rather than 200. After signing in, the page renders exactly as it does today. A WebSocket handshake to /_blazor without a session is rejected. dotnet build reports 0 errors and 0 warnings.",
+      "references": [
+        { "label": "OWASP A01:2021 Broken Access Control", "url": "https://owasp.org/Top10/A01_2021-Broken_Access_Control/" },
+        { "label": "ASP.NET Core fallback authorization policy", "url": "https://learn.microsoft.com/aspnet/core/security/authorization/secure-data" }
+      ]
+    },
+    {
+      "id": "M-2",
+      "title": "No authentication mechanism of any kind is registered",
+      "severity": "High",
+      "confidence": "Confirmed",
+      "category": "authentication",
+      "owasp": "A07:2021 Identification and Authentication Failures",
+      "cwe": ["CWE-306", "CWE-287"],
+      "attack": [{ "id": "T1078", "name": "Valid Accounts" }],
+      "nist": { "ssdf": ["PW.1"], "sp80053": ["IA-2", "IA-8", "AC-2"] },
+      "status": "new",
+      "exposure": "internet-facing",
+      "locations": [
+        { "file": "Program.cs", "line": 37, "excerpt": "builder.Services.AddRazorPages();\nbuilder.Services.AddServerSideBlazor(options =>\n    options.DetailedErrors = builder.Environment.IsDevelopment());" },
+        { "file": "SECURITY.md", "line": 4, "excerpt": "**Scope of this pass: S-3 → S-10.** S-1 (authentication) and S-2 (IDOR) are intentionally **out of\nscope** for the demo — there is no user or role management" },
+        { "file": "Application/Common/SecurityGuard.cs", "line": 46, "excerpt": "\"AUDIT actor={Actor} action={Action} entity={Entity} key={Key} at={UtcTime:o}\",\n\"anonymous\", action, entity, key, DateTime.UtcNow);" }
+      ],
+      "evidence": "No authentication scheme, no user store, no identity provider and no credential handling exists in the tree. The service registration block in Program.cs goes from AddRazorPages() straight to AddMudServices() with nothing in between. There is no ASP.NET Core Identity package in the .csproj, no cookie or JWT scheme, and no login page among the five routes. The project's own SECURITY.md:4-6 states that S-1 (authentication) was deliberately left out of the previous remediation pass, and SecurityGuard.cs:46 hardcodes the audit actor to \"anonymous\" as a consequence. This is recorded as a finding rather than an accepted decision because the deployment configuration - Kestrel on 0.0.0.0 - does not match the demo-only assumption the exclusion rests on.",
+      "risk": "There is no identity to attach any control to. That blocks not just M-1 but the ownership checks of M-3, the audit attribution of M-8, and the rate limiter's intended per-user partitioning in M-7 - four findings that cannot be closed until this one is. It is also a regression in a specific sense worth stating plainly: the legacy 4GL program had no authentication of its own either, but a user still needed an operating-system account and an Informix database session to launch it. The Blazor application has no such backstop; reaching the TCP port is the whole of the requirement.",
+      "impact": { "confidentiality": "High", "integrity": "High", "availability": "Low" },
+      "remediated": false,
+      "remediation": {
+        "summary": "Register an identity provider. This is the prerequisite for M-1, M-3, M-7 and M-8, so schedule it first.",
+        "nonBreaking": true,
+        "breakingChange": false,
+        "effort": "M",
+        "planned": true,
+        "steps": [
+          "Pick the provider the organisation already runs. For an internal line-of-business application on Entra ID: add Microsoft.Identity.Web and call builder.Services.AddMicrosoftIdentityWebAppAuthentication(builder.Configuration).",
+          "If the app must own its users instead, add Microsoft.AspNetCore.Identity.EntityFrameworkCore, an ApplicationUser and an IdentityDbContext, and AddDefaultIdentity with RequireConfirmedAccount.",
+          "Add <CascadingAuthenticationState> in App.razor and an AuthorizeRouteView so components observe the signed-in principal.",
+          "Keep secrets out of appsettings: read the client secret from user-secrets in development and from the platform secret store in production."
+        ],
+        "codeBefore": "builder.Services.AddRazorPages();\nbuilder.Services.AddServerSideBlazor(options =>\n    options.DetailedErrors = builder.Environment.IsDevelopment());",
+        "codeAfter": "builder.Services.AddMicrosoftIdentityWebAppAuthentication(builder.Configuration, \"AzureAd\");\nbuilder.Services.AddRazorPages().AddMicrosoftIdentityUI();\nbuilder.Services.AddServerSideBlazor(options =>\n    options.DetailedErrors = builder.Environment.IsDevelopment());",
+        "language": "csharp"
+      },
+      "verification": "GET / without a session redirects to the provider's sign-in page. After signing in, HttpContext.User.Identity.IsAuthenticated is true and Name is the signed-in principal. A new AUDIT log line written after a customer edit shows the real actor rather than \"anonymous\".",
+      "references": [
+        { "label": "CWE-306: Missing Authentication for Critical Function", "url": "https://cwe.mitre.org/data/definitions/306.html" }
+      ]
+    },
+    {
+      "id": "M-3",
+      "title": "Records are operated on by caller-supplied key with no ownership or entitlement check",
+      "severity": "High",
+      "confidence": "Confirmed",
+      "category": "access-control",
+      "owasp": "A01:2021 Broken Access Control",
+      "cwe": ["CWE-639", "CWE-863"],
+      "attack": [{ "id": "T1190", "name": "Exploit Public-Facing Application" }],
+      "nist": { "ssdf": ["PW.1", "PW.5"], "sp80053": ["AC-3", "AC-4"] },
+      "status": "new",
+      "exposure": "internet-facing",
+      "locations": [
+        { "file": "Application/Services/D4Cust/D4CustService.cs", "line": 353, "excerpt": "public async Task<bool> delete_customerAsync(int customerNum, CancellationToken ct = default)" },
+        { "file": "Application/Services/D4Orders/D4OrdersService.cs", "line": 170, "excerpt": "public async Task<bool> delete_orderAsync(int orderNum, CancellationToken ct = default)" },
+        { "file": "Application/Services/D4Orders/D4OrdersService.cs", "line": 330, "excerpt": "public async Task<List<OrderWithItemsDto>> GetOrdersByCustomerAsync(int customerNum, CancellationToken ct = default)" },
+        { "file": "Application/Services/D4Cust/D4CustService.cs", "line": 267, "excerpt": "public async Task<bool> update_customerAsync(CustomerDto dto, CancellationToken ct = default)" }
+      ],
+      "evidence": "Every read and mutation in the service layer is keyed on a value the caller supplies and performs no check beyond existence. delete_customerAsync(int customerNum) counts dependent orders and deletes; update_customerAsync(dto) looks up dto.CustomerNum and overwrites; delete_orderAsync(int orderNum) removes the order and its items; GetOrdersByCustomerAsync(int customerNum) returns every order for whatever customer number is passed. The same shape holds in D4StockService for add, update and delete. No method consults an identity, a tenant, a role or an ownership relation, because none exists (M-2).",
+      "risk": "This is a distinct defect from M-1 and it survives fixing it. Adding authentication in front of the application makes every signed-in user a full administrator over every record, because the services themselves make no distinction. The classic consequence is horizontal escalation: a user permitted to view their own orders enumerates customer numbers and reads everyone's. It is also the same structural flaw the legacy system had - the decision and the operation live in different places - reproduced in a new language, which is worth noting because the migration is otherwise the natural moment to fix it.",
+      "impact": { "confidentiality": "High", "integrity": "High", "availability": "Low" },
+      "remediated": false,
+      "remediation": {
+        "summary": "Introduce a role model and enforce it at the service boundary, next to the operation rather than in the UI, so the check cannot be skipped by a new caller.",
+        "nonBreaking": true,
+        "breakingChange": false,
+        "effort": "M",
+        "planned": true,
+        "steps": [
+          "Define two named policies in Program.cs - CanReadCustomers and CanModifyCustomers - and map them to the roles or claims the identity provider issues.",
+          "Inject IAuthorizationService (or IHttpContextAccessor) into each service and call it at the top of every mutating method; throw a dedicated UnauthorizedException that the pages surface as a status message.",
+          "Where a genuine ownership relation exists - a sales representative and their accounts - add the predicate to the EF query itself (.Where(o => o.OwnerId == currentUserId)) rather than filtering after the fetch, so an unauthorized row is never loaded.",
+          "Wrap the destructive toolbar actions in <AuthorizeView Policy=\"CanModifyCustomers\"> so the UI matches the server, while keeping the server check as the one that decides."
+        ],
+        "codeBefore": "public async Task<bool> delete_customerAsync(int customerNum, CancellationToken ct = default)\n{\n    _logger.LogInformation(\"delete_customer: Attempting to delete customer_num = {CustomerNum}\", customerNum);\n\n    if (customerNum <= 0)\n    {\n        return false;\n    }",
+        "codeAfter": "public async Task<bool> delete_customerAsync(int customerNum, CancellationToken ct = default)\n{\n    var user = _httpContextAccessor.HttpContext?.User;\n    var authz = await _authorizationService.AuthorizeAsync(user!, null, \"CanModifyCustomers\");\n    if (!authz.Succeeded)\n        throw new UnauthorizedAccessException(\"Not permitted to delete customers.\");\n\n    _logger.LogInformation(\"delete_customer: Attempting to delete customer_num = {CustomerNum}\", customerNum);\n\n    if (customerNum <= 0)\n    {\n        return false;\n    }",
+        "language": "csharp"
+      },
+      "verification": "Sign in as a read-only principal and invoke the delete action: the service throws, the page shows the permission message, and the row is still present. Sign in as a principal holding the modify role: the delete succeeds exactly as it does today. An integration test asserts both outcomes.",
+      "references": [
+        { "label": "CWE-639: Authorization Bypass Through User-Controlled Key", "url": "https://cwe.mitre.org/data/definitions/639.html" }
+      ]
+    },
+    {
+      "id": "M-4",
+      "title": "Application serves plaintext HTTP on all interfaces; HTTPS redirection is configured with no HTTPS endpoint to redirect to",
+      "severity": "High",
+      "confidence": "Confirmed",
+      "category": "cryptographic",
+      "owasp": "A02:2021 Cryptographic Failures",
+      "cwe": ["CWE-319", "CWE-311"],
+      "attack": [{ "id": "T1040", "name": "Network Sniffing" }],
+      "nist": { "ssdf": ["PW.9"], "sp80053": ["SC-8", "SC-13", "SC-23"] },
+      "status": "new",
+      "exposure": "internet-facing",
+      "locations": [
+        { "file": "appsettings.json", "line": 5, "excerpt": "\"Kestrel\": {\n  \"Endpoints\": {\n    \"Http\": {\n      \"Url\": \"http://0.0.0.0:5000\"\n    }\n  }\n}" },
+        { "file": "Program.cs", "line": 116, "excerpt": "app.UseHttpsRedirection();" },
+        { "file": "Program.cs", "line": 113, "excerpt": "app.UseHsts();" },
+        { "file": "Properties/launchSettings.json", "line": 7, "excerpt": "\"applicationUrl\": \"http://localhost:5000\"" },
+        { "file": "appsettings.json", "line": 24, "excerpt": "\"AllowedHosts\": \"*\"" }
+      ],
+      "evidence": "The only Kestrel endpoint declared anywhere is http://0.0.0.0:5000 - plaintext, on every interface. No HTTPS endpoint, certificate path or certificate reference exists in appsettings.json, appsettings.Development.json or launchSettings.json. Program.cs:116 calls UseHttpsRedirection(), but that middleware determines the redirect target from the configured HTTPS server port; with no HTTPS endpoint bound it cannot resolve one, logs a warning at startup and passes the request through unredirected. UseHsts() at line 113 emits Strict-Transport-Security, but a browser that has only ever reached the origin over http:// never receives the header over a trusted channel for it to take effect. AllowedHosts is \"*\", so the Host header is unconstrained.",
+      "risk": "Every request and response crosses the network in cleartext: the full customer records rendered on /customers, the PDF exports from /reports, and the entire Blazor Server SignalR circuit - which for this architecture carries all UI state and every user interaction, not just form submissions. Anyone on the path reads it and can modify it. The configuration is also actively misleading: UseHttpsRedirection and UseHsts in the pipeline read like transport security is handled, and a reviewer scanning Program.cs would reasonably conclude that it is. The gap is only visible by reading appsettings.json alongside it.",
+      "impact": { "confidentiality": "High", "integrity": "High", "availability": "Low" },
+      "remediated": false,
+      "remediation": {
+        "summary": "Bind a real HTTPS endpoint so the redirection and HSTS middleware already in the pipeline start doing their job, and constrain the accepted hosts.",
+        "nonBreaking": true,
+        "breakingChange": false,
+        "effort": "S",
+        "planned": true,
+        "steps": [
+          "Add an Https endpoint to the Kestrel configuration with the certificate the environment provides. In development, dotnet dev-certs https --trust plus the default https launch profile is enough; in production, reference the platform certificate store or the file the deployment mounts.",
+          "Set AllowedHosts to the real hostnames instead of \"*\", so a Host-header attack cannot be used to poison generated links (this also closes half of M-7).",
+          "If TLS is terminated at a reverse proxy or ingress rather than in Kestrel, keep the HTTP endpoint but add UseForwardedHeaders with KnownProxies set, so the app sees the original scheme and UseHttpsRedirection behaves correctly - and say so in the deployment notes, because the current file gives no indication either way.",
+          "Set the HSTS max-age explicitly once HTTPS is confirmed working end to end; the default of 30 days is deliberate and should be raised only after that."
+        ],
+        "codeBefore": "\"Kestrel\": {\n  \"Endpoints\": {\n    \"Http\": {\n      \"Url\": \"http://0.0.0.0:5000\"\n    }\n  }\n},\n\"AllowedHosts\": \"*\"",
+        "codeAfter": "\"Kestrel\": {\n  \"Endpoints\": {\n    \"Http\": {\n      \"Url\": \"http://0.0.0.0:5000\"\n    },\n    \"Https\": {\n      \"Url\": \"https://0.0.0.0:5001\",\n      \"Certificate\": { \"Path\": \"certs/app.pfx\", \"Password\": \"\" }\n    }\n  }\n},\n\"AllowedHosts\": \"wholesalers.example.com;localhost\"",
+        "language": "json"
+      },
+      "verification": "curl -sI http://localhost:5000/customers returns 307 with a Location on https://. curl -sI https://localhost:5001/customers returns 200 and a Strict-Transport-Security header. The startup log no longer contains the \"Failed to determine the https port for redirect\" warning. A request with an unexpected Host header is rejected with 400.",
+      "references": [
+        { "label": "CWE-319: Cleartext Transmission of Sensitive Information", "url": "https://cwe.mitre.org/data/definitions/319.html" },
+        { "label": "OWASP A02:2021 Cryptographic Failures", "url": "https://owasp.org/Top10/A02_2021-Cryptographic_Failures/" }
+      ]
+    },
+    {
+      "id": "M-5",
+      "title": "Order line items are never persisted; orders save with zero items and invoices total to zero",
+      "severity": "High",
+      "confidence": "Confirmed",
+      "category": "validation",
+      "owasp": "A04:2021 Insecure Design",
+      "cwe": ["CWE-670", "CWE-1288"],
+      "attack": [{ "id": "T1565.001", "name": "Data Manipulation: Stored Data Manipulation" }],
+      "nist": { "ssdf": ["PW.5", "PW.7"], "sp80053": ["SI-7", "SI-10", "CM-4"] },
+      "status": "new",
+      "exposure": "internet-facing",
+      "locations": [
+        { "file": "Pages/Orders/OrderForm.razor.cs", "line": 251, "excerpt": "var saved = await OrdersService.add_orderAsync(orderDto);\n_orderNum = saved.OrderNum;\n\n// Insert items (port of insert_items in d4_orders.4gl)\n// The service should handle item insertion as part of add_order\n// but we also need to persist items via the order context\nEditingContext.SetOrder(saved);" },
+        { "file": "Application/Services/D4Orders/D4OrdersService.cs", "line": 515, "excerpt": "public async Task<bool> InsertItemsForOrderAsync(int orderNum, List<OrderItemDto> items, CancellationToken ct = default)" },
+        { "file": "Application/Services/D4Orders/D4OrdersService.cs", "line": 60, "excerpt": "public async Task<OrderDto> add_orderAsync(OrderDto dto, CancellationToken ct = default)\n{\n    SecurityGuard.Validate(dto, _logger);\n    await using var db = await _dbFactory.CreateDbContextAsync(ct);\n    await using var transaction = await db.Database.BeginTransactionAsync(ct);" },
+        { "file": "Application/Services/D4Orders/D4OrdersService.cs", "line": 918, "excerpt": "var pdfBytes = document.GeneratePdf();\n_logger.LogInformation(\"Invoice PDF generated for order {OrderNum}: {Size} bytes\", orderNum, pdfBytes.Length);" }
+      ],
+      "evidence": "Traced the whole order-creation path. OrderForm.razor.cs:212-235 collects and validates the item rows, renumbers them and recomputes the totals in the browser-side model. Line 251 then calls add_orderAsync(orderDto), which inserts the orders header row only - it never touches db.items - commits its transaction and returns. Lines 254-258 follow with a comment acknowledging that items still need persisting, and then set the editing context instead of persisting them. InsertItemsForOrderAsync, the method written for exactly this, has zero callers anywhere in the tree (the only three matches are its own declaration, its interface declaration, and a comment pointing at it). insert_itemsAsync is likewise a stub that returns without writing. Separately, GenerateInvoicePdfAsync builds the full document and at line 918-919 logs the byte count and discards the array - the generated invoice is never returned to a caller.",
+      "risk": "Orders are committed to the database as headers with no lines, after the user has been shown a populated grid and a computed total and told \"Order #N created\". Everything downstream inherits the empty set: GenerateInvoiceAsync and GenerateInvoicePdfAsync iterate zero items and produce a sub-total, 6.5% sales tax, 3.5% shipping charge and grand total of zero; the accounts-receivable report joins through items and so omits the order entirely. This is a data-integrity failure on financial records that presents to the user as success, which is the property that makes it worth reporting in a security review rather than a functional one - nothing in the application signals that anything went wrong. It is rated High rather than Critical because it destroys data that was never written rather than exposing data that was.",
+      "impact": { "confidentiality": "Low", "integrity": "High", "availability": "Low" },
+      "remediated": false,
+      "remediation": {
+        "summary": "Persist the items inside the same transaction that writes the order header, so an order and its lines commit or roll back together.",
+        "nonBreaking": true,
+        "breakingChange": false,
+        "effort": "S",
+        "planned": true,
+        "steps": [
+          "Change add_orderAsync to accept the item list (it is already on OrderDto.Items) and write the items inside the existing transaction, between SaveChangesAsync and CommitAsync. Legacy add_order did exactly this - BEGIN WORK, insert header, insert_items(), COMMIT WORK - so this restores the original behaviour rather than inventing new semantics.",
+          "Pass the page's item rows into the DTO: orderDto.Items = _items.Select(ToDto).ToList() before the call.",
+          "Recompute each TotalPrice server-side from the stock table rather than trusting the client value (see M-12), and validate the item rows (see M-9), both inside that transaction.",
+          "Call SecurityGuard.Audit for the item write as well, so the audit trail covers the financial rows and not just the header.",
+          "Return the generated PDF bytes from GenerateInvoicePdfAsync instead of discarding them, and hand them to the existing DownloadReport helper the Reports page already uses.",
+          "Delete InsertItemsForOrderAsync and insert_itemsAsync, or give them a single real caller - leaving an unused write path invites the next change to call the wrong one."
+        ],
+        "codeBefore": "db.orders.Add(orderEntity);\nawait db.SaveChangesAsync(ct);\n\nint assignedOrderNum = orderEntity.OrderNum;\n_logger.LogInformation(\"Order {OrderNum} created for customer {CustomerNum}\", assignedOrderNum, dto.CustomerNum);\nSecurityGuard.Audit(_logger, \"CREATE\", \"orders\", assignedOrderNum);\n\n// ... build result ...\nawait transaction.CommitAsync(ct);",
+        "codeAfter": "db.orders.Add(orderEntity);\nawait db.SaveChangesAsync(ct);\n\nint assignedOrderNum = orderEntity.OrderNum;\n\nforeach (var item in dto.Items ?? new List<OrderItemDto>())\n{\n    if (item.Quantity == 0) continue;\n    SecurityGuard.Validate(item, _logger);\n    var stock = await db.stock.AsNoTracking()\n        .FirstAsync(s => s.StockNum == item.StockNum && s.ManuCode == item.ManuCode, ct);\n    db.items.Add(new Domain.Entities.Core.Item\n    {\n        ItemNum = item.ItemNum, OrderNum = assignedOrderNum,\n        StockNum = item.StockNum, ManuCode = item.ManuCode,\n        Quantity = item.Quantity,\n        TotalPrice = item.Quantity * (stock.UnitPrice ?? 0m)\n    });\n}\nawait db.SaveChangesAsync(ct);\n\nSecurityGuard.Audit(_logger, \"CREATE\", \"orders\", assignedOrderNum);\nSecurityGuard.Audit(_logger, \"CREATE\", \"items\", assignedOrderNum);\n\n// ... build result ...\nawait transaction.CommitAsync(ct);",
+        "language": "csharp"
+      },
+      "verification": "Create an order with three line items through /orders, then query the database: SELECT COUNT(*) FROM items WHERE order_num = <new id> returns 3, and the stored total_price values match quantity x the stock table's unit_price. Generate the invoice for that order and confirm the sub-total is non-zero and the 6.5% and 3.5% lines are consistent with it. Force an exception during the item loop and confirm the orders header row is rolled back too.",
+      "references": [
+        { "label": "CWE-670: Always-Incorrect Control Flow Implementation", "url": "https://cwe.mitre.org/data/definitions/670.html" }
+      ]
+    },
+    {
+      "id": "M-6",
+      "title": "Anonymous one-click export of the entire customer table as a PDF",
+      "severity": "Medium",
+      "confidence": "Confirmed",
+      "category": "access-control",
+      "owasp": "A01:2021 Broken Access Control",
+      "cwe": ["CWE-359", "CWE-200"],
+      "attack": [{ "id": "T1530", "name": "Data from Cloud Storage" }],
+      "nist": { "ssdf": ["PW.5"], "sp80053": ["AC-3", "AC-21", "SC-28"] },
+      "status": "new",
+      "exposure": "internet-facing",
+      "locations": [
+        { "file": "Pages/Reports/Reports.razor.cs", "line": 115, "excerpt": "_labelResults = await ReportService.PrintLabelsAsync(new CustomerSearchDto());" },
+        { "file": "Application/Services/D4Report/D4ReportService.cs", "line": 57, "excerpt": "IQueryable<Customer> query = db.Set<Customer>().AsNoTracking();\n\nif (!string.IsNullOrWhiteSpace(filter.Fname))\n    query = query.Where(c => c.Fname != null && c.Fname.Contains(filter.Fname));" },
+        { "file": "Pages/Reports/Reports.razor.cs", "line": 137, "excerpt": "_arResults = await ReportService.PrintArAsync();" },
+        { "file": "Pages/Reports/Reports.razor.cs", "line": 32, "excerpt": "await JS.InvokeVoidAsync(\"downloadFileFromBytes\",\n    fileName ?? \"report.pdf\", contentType ?? \"application/pdf\", Convert.ToBase64String(content));" }
+      ],
+      "evidence": "OnClickPrintLabels constructs a new CustomerSearchDto() - every property defaulted to string.Empty - and passes it to PrintLabelsAsync. That method adds a Where clause only for non-empty filter values, so an all-empty filter produces an unfiltered query and the PDF contains every customer row: first and last name, company, both address lines, city, state and zip. OnClickPrintAR calls PrintArAsync with no filter argument at all, returning every unpaid order with the customer's name, company and outstanding amount. Both results are handed to DownloadReport, which streams them to the browser via the downloadFileFromBytes helper. With M-1 unresolved, reaching /reports and clicking is the entire attack.",
+      "risk": "This is the highest-value exfiltration path in the application and it takes one HTTP GET and one click. It is filed separately from M-1 because the defect is not only the missing authentication: the UI hard-codes an unfiltered query where the legacy system at least required the operator to fill in a query-by-example form first. Fixing M-1 leaves any signed-in user - of any role - able to pull the whole customer list as a portable document, which is precisely the shape of a bulk-PII incident.",
+      "impact": { "confidentiality": "High", "integrity": "Low", "availability": "Low" },
+      "remediated": false,
+      "remediation": {
+        "summary": "Require an explicit filter before a report runs, gate the reports behind a dedicated policy, and record every export in the audit trail.",
+        "nonBreaking": true,
+        "breakingChange": false,
+        "effort": "S",
+        "planned": true,
+        "steps": [
+          "Open the existing CustomerFilterDialog before generating labels rather than passing an empty DTO - the dialog is already written and referenced from the page, so this restores the legacy query-by-example step the port dropped.",
+          "Reject an all-empty filter in PrintLabelsAsync with a clear message, or require an explicit ExportAll flag that a separate policy authorizes, so exporting everything is a deliberate act rather than the default.",
+          "Apply [Authorize(Policy = \"CanExportReports\")] to the Reports page once M-1 lands.",
+          "Call SecurityGuard.Audit(_logger, \"EXPORT\", \"customer\", rowCount) on every report generation - a bulk export is exactly the event an audit trail exists to record, and it is currently the only mutation-equivalent action that writes nothing."
+        ],
+        "codeBefore": "_labelResults = await ReportService.PrintLabelsAsync(new CustomerSearchDto());",
+        "codeAfter": "var dialog = await DialogService.ShowAsync<CustomerFilterDialog>(\"Select customers\");\nvar result = await dialog.Result;\nif (result is null || result.Canceled || result.Data is not CustomerSearchDto filter) return;\n\n_labelResults = await ReportService.PrintLabelsAsync(filter);",
+        "language": "csharp"
+      },
+      "verification": "Clicking Labels opens the filter dialog; cancelling produces no PDF. Supplying a state code produces a PDF containing only customers in that state. An attempt to run the report with every field blank is rejected with a message. The log contains an AUDIT ... action=EXPORT entity=customer line for each successful export.",
+      "references": [
+        { "label": "CWE-359: Exposure of Private Personal Information", "url": "https://cwe.mitre.org/data/definitions/359.html" }
+      ]
+    },
+    {
+      "id": "M-7",
+      "title": "Rate limiter partitions on a client-controlled header, so the limit is evaded by varying it",
+      "severity": "Medium",
+      "confidence": "Confirmed",
+      "category": "misconfiguration",
+      "owasp": "A05:2021 Security Misconfiguration",
+      "cwe": ["CWE-770", "CWE-807"],
+      "attack": [{ "id": "T1499", "name": "Endpoint Denial of Service" }],
+      "nist": { "ssdf": ["PW.5"], "sp80053": ["SC-5", "CM-6"] },
+      "status": "new",
+      "exposure": "internet-facing",
+      "locations": [
+        { "file": "Program.cs", "line": 79, "excerpt": "options.GlobalLimiter = System.Threading.RateLimiting.PartitionedRateLimiter\n    .Create<Microsoft.AspNetCore.Http.HttpContext, string>(context =>\n        System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(\n            partitionKey: context.User?.Identity?.Name ?? context.Request.Headers.Host.ToString()," },
+        { "file": "Program.cs", "line": 86, "excerpt": "PermitLimit = 1000,\nWindow = TimeSpan.FromMinutes(1)" },
+        { "file": "appsettings.json", "line": 24, "excerpt": "\"AllowedHosts\": \"*\"" }
+      ],
+      "evidence": "The partition key is context.User?.Identity?.Name ?? context.Request.Headers.Host. Because no authentication is registered (M-2), User.Identity.Name is null on every request without exception, so the key is always the Host header - a value the client sets. AllowedHosts is \"*\", so ASP.NET Core's host filtering accepts any value rather than rejecting unexpected ones. Each distinct Host string therefore receives its own fresh 1,000-requests-per-minute bucket, and an attacker generating a new Host value per request is never limited at all. In the intended deployment the opposite problem also holds: every legitimate user shares one Host and so shares one 1,000/minute budget between them.",
+      "risk": "The control does not do what the code says it does, in both directions. As a defence it is bypassed by changing one header; as a fairness mechanism it lumps all real users into a single bucket, so one heavy client can exhaust the budget for everyone. The specific exposure that matters here is the Blazor Server circuit: each connection holds server-side state for the life of the session, so unlimited connection establishment is a resource-exhaustion path rather than merely a bandwidth one.",
+      "impact": { "confidentiality": "Low", "integrity": "Low", "availability": "Medium" },
+      "remediated": false,
+      "remediation": {
+        "summary": "Partition on the remote IP address, falling back to the authenticated user name once identity exists, and stop accepting arbitrary Host headers.",
+        "nonBreaking": true,
+        "breakingChange": false,
+        "effort": "S",
+        "planned": true,
+        "steps": [
+          "Change the partition key to the authenticated user name when present and the remote IP address otherwise - never a request header.",
+          "Set AllowedHosts to the real hostnames (this is the same change M-4 calls for, and one edit closes both).",
+          "If the app sits behind a proxy, add UseForwardedHeaders with KnownProxies configured, so RemoteIpAddress is the real client rather than the proxy - otherwise every request partitions to one key and the limiter becomes global.",
+          "Consider a tighter, separate limiter on the circuit endpoint than on static content; 1,000/minute is generous for a page that opens one WebSocket."
+        ],
+        "codeBefore": "partitionKey: context.User?.Identity?.Name ?? context.Request.Headers.Host.ToString(),",
+        "codeAfter": "partitionKey: context.User?.Identity?.Name\n    ?? context.Connection.RemoteIpAddress?.ToString()\n    ?? \"unknown\",",
+        "language": "csharp"
+      },
+      "verification": "Issue 1,001 requests in one minute from a single client varying the Host header on each: the 1,001st returns 429 rather than 200. Issue requests from two different source addresses: each gets its own budget. A request carrying an unrecognised Host header is rejected with 400 before it reaches the limiter.",
+      "references": [
+        { "label": "CWE-770: Allocation of Resources Without Limits or Throttling", "url": "https://cwe.mitre.org/data/definitions/770.html" }
+      ]
+    },
+    {
+      "id": "M-8",
+      "title": "Audit trail records every actor as the literal string \"anonymous\"",
+      "severity": "Medium",
+      "confidence": "Confirmed",
+      "category": "logging",
+      "owasp": "A09:2021 Security Logging and Monitoring Failures",
+      "cwe": ["CWE-778", "CWE-223"],
+      "attack": [{ "id": "T1070", "name": "Indicator Removal" }],
+      "nist": { "ssdf": ["PW.5", "RV.1"], "sp80053": ["AU-3", "AU-6", "AU-12"] },
+      "status": "new",
+      "exposure": "internet-facing",
+      "locations": [
+        { "file": "Application/Common/SecurityGuard.cs", "line": 42, "excerpt": "public static void Audit(ILogger logger, string action, string entity, object key)\n{\n    logger.LogInformation(\n        \"AUDIT actor={Actor} action={Action} entity={Entity} key={Key} at={UtcTime:o}\",\n        \"anonymous\", action, entity, key, DateTime.UtcNow);\n}" },
+        { "file": "Application/Services/D4Cust/D4CustService.cs", "line": 396, "excerpt": "SecurityGuard.Audit(_logger, \"DELETE\", \"customer\", customerNum); // S-8" },
+        { "file": "SECURITY.md", "line": 22, "excerpt": "Auditing records the actor as `anonymous` until authentication (S-1) is added — that is the single\nplace to begin capturing the real user." }
+      ],
+      "evidence": "SecurityGuard.Audit passes the string literal \"anonymous\" as the Actor property on every call. There are eleven call sites across D4CustService, D4OrdersService and D4StockService covering create, update and delete on customer, orders and stock. Every one of them produces an entry that names an action, an entity and a key, and identifies the actor as anonymous. No call site passes or could pass anything else - the parameter does not exist on the method signature. Exports are not audited at all (M-6).",
+      "risk": "The audit trail records what happened and to which row, but not who - so it establishes that a customer was deleted and makes it impossible to say by whom. Against the current anonymous deployment that is arguably accurate rather than wrong, which is why this is Medium rather than High; the danger is that it reads as a working audit control on a compliance checklist while providing no attribution. The project's own SECURITY.md is candid about this, and the fix is small and local - which is the argument for doing it as part of the identity work rather than after.",
+      "impact": { "confidentiality": "Low", "integrity": "Medium", "availability": "Low" },
+      "remediated": false,
+      "remediation": {
+        "summary": "Give Audit an actor parameter sourced from the current principal, so the trail names a user as soon as identity exists.",
+        "nonBreaking": true,
+        "breakingChange": false,
+        "effort": "S",
+        "planned": true,
+        "steps": [
+          "Add an IHttpContextAccessor-backed ICurrentUser abstraction returning the principal's name, or \"anonymous\" when there is none.",
+          "Change Audit to take the actor as a parameter and pass it from each call site; the string stays \"anonymous\" until M-2 lands, after which every entry names a real user with no further code change.",
+          "Add the correlation id or circuit id to the entry as well - on Blazor Server a single circuit can produce many mutations, and grouping them is what makes the trail investigable.",
+          "Route AUDIT entries to their own Serilog sink with a retention policy, so they are not aged out with ordinary application logs."
+        ],
+        "codeBefore": "public static void Audit(ILogger logger, string action, string entity, object key)\n{\n    logger.LogInformation(\n        \"AUDIT actor={Actor} action={Action} entity={Entity} key={Key} at={UtcTime:o}\",\n        \"anonymous\", action, entity, key, DateTime.UtcNow);\n}",
+        "codeAfter": "public static void Audit(ILogger logger, string actor, string action, string entity, object key)\n{\n    logger.LogInformation(\n        \"AUDIT actor={Actor} action={Action} entity={Entity} key={Key} at={UtcTime:o}\",\n        string.IsNullOrWhiteSpace(actor) ? \"anonymous\" : actor,\n        action, entity, key, DateTime.UtcNow);\n}",
+        "language": "csharp"
+      },
+      "verification": "Sign in, delete a customer, and grep the log for AUDIT: the entry shows actor=<the signed-in principal> rather than actor=anonymous. Perform the same action while signed out (if any anonymous path remains) and confirm it still records, marked anonymous.",
+      "references": [
+        { "label": "CWE-778: Insufficient Logging", "url": "https://cwe.mitre.org/data/definitions/778.html" }
+      ]
+    },
+    {
+      "id": "M-9",
+      "title": "Order line items bypass both the server-side validation and the audit controls",
+      "severity": "Medium",
+      "confidence": "Confirmed",
+      "category": "validation",
+      "owasp": "A04:2021 Insecure Design",
+      "cwe": ["CWE-20", "CWE-1173"],
+      "nist": { "ssdf": ["PW.5"], "sp80053": ["SI-10", "AU-12"] },
+      "status": "new",
+      "exposure": "internet-facing",
+      "locations": [
+        { "file": "Application/DTOs/Orders/OrderItemDto.cs", "line": 8, "excerpt": "public record OrderItemDto\n{\n    public short ItemNum { get; set; }\n    public short StockNum { get; set; }\n    public string ManuCode { get; set; } = string.Empty;" },
+        { "file": "Application/Common/SecurityGuard.cs", "line": 29, "excerpt": "if (!Validator.TryValidateObject(dto, context, results, validateAllProperties: true))" },
+        { "file": "Application/Services/D4Orders/D4OrdersService.cs", "line": 515, "excerpt": "public async Task<bool> InsertItemsForOrderAsync(int orderNum, List<OrderItemDto> items, CancellationToken ct = default)\n{\n    await using var db = await _dbFactory.CreateDbContextAsync(ct);\n\n    try\n    {\n        foreach (var item in items)" },
+        { "file": "Application/DTOs/Customers/CustomerDto.cs", "line": 15, "excerpt": "[StringLength(15, ErrorMessage = \"First name cannot exceed 15 characters.\")]\npublic string Fname { get; set; } = string.Empty;" }
+      ],
+      "evidence": "Three gaps compound. First, OrderItemDto carries no DataAnnotations at all - no StringLength on ManuCode or Description, no Range on Quantity, UnitPrice or TotalPrice - unlike CustomerDto, StockDto and OrderDto, all of which were annotated in the S-5 remediation pass. Second, SecurityGuard.Validate calls Validator.TryValidateObject, which does not recurse into nested objects or collections even with validateAllProperties: true, so validating an OrderDto never reaches its Items list regardless of what annotations that list's elements carry. Third, InsertItemsForOrderAsync - the method that writes items - calls neither SecurityGuard.Validate nor SecurityGuard.Audit, while every other write method in the service layer calls both.",
+      "risk": "The two controls the previous remediation pass documented as covering \"all write methods\" have a hole in exactly the place money is written. The financial columns of the items table - quantity and total_price - are the only ones in the application with no range check and no audit entry. That the path is currently dead (M-5) is why this is Medium rather than High, but it also makes it more dangerous in a specific way: the moment M-5 is fixed by wiring InsertItemsForOrderAsync up, an unvalidated, unaudited write path to the financial rows goes live. The two findings should be fixed in the same change.",
+      "impact": { "confidentiality": "Low", "integrity": "High", "availability": "Low" },
+      "remediated": false,
+      "remediation": {
+        "summary": "Annotate OrderItemDto to match the stores7 items schema and validate each item explicitly, since the framework will not do it for you through the parent.",
+        "nonBreaking": true,
+        "breakingChange": false,
+        "effort": "S",
+        "planned": true,
+        "steps": [
+          "Add DataAnnotations to OrderItemDto mirroring the schema: [StringLength(3)] on ManuCode, [Range(1, 9999)] on Quantity, [Range(0, 9999999.99)] on UnitPrice and TotalPrice.",
+          "Validate each element explicitly wherever a list is accepted - Validator.TryValidateObject will not recurse, so a loop is required rather than a deeper annotation.",
+          "Call SecurityGuard.Audit for the item write, so the items table is covered like every other table.",
+          "Consider adding a Validate<T>(IEnumerable<T>) overload to SecurityGuard so the next nested collection does not repeat the omission."
+        ],
+        "codeBefore": "public record OrderItemDto\n{\n    public short ItemNum { get; set; }\n    public short StockNum { get; set; }\n    public string ManuCode { get; set; } = string.Empty;\n    public string Description { get; set; } = string.Empty;\n    public short Quantity { get; set; }\n    public decimal UnitPrice { get; set; }\n    public decimal TotalPrice { get; set; }",
+        "codeAfter": "public record OrderItemDto\n{\n    public short ItemNum { get; set; }\n    public short StockNum { get; set; }\n    [StringLength(3, ErrorMessage = \"Manufacturer code cannot exceed 3 characters.\")]\n    public string ManuCode { get; set; } = string.Empty;\n    [StringLength(15, ErrorMessage = \"Description cannot exceed 15 characters.\")]\n    public string Description { get; set; } = string.Empty;\n    [Range(1, 9999, ErrorMessage = \"Quantity must be between 1 and 9999.\")]\n    public short Quantity { get; set; }\n    [Range(0, 9999999.99, ErrorMessage = \"Unit price is out of range.\")]\n    public decimal UnitPrice { get; set; }\n    [Range(0, 9999999.99, ErrorMessage = \"Total price is out of range.\")]\n    public decimal TotalPrice { get; set; }",
+        "language": "csharp"
+      },
+      "verification": "Submit an order whose item carries a 4-character manufacturer code or a negative quantity: the service throws ValidationException and the page shows the message; nothing is written. Submit a valid order and confirm the items are written and an AUDIT ... entity=items line appears in the log. A unit test asserts that validating an OrderDto with an invalid nested item now fails.",
+      "references": [
+        { "label": "CWE-1173: Improper Use of Validation Framework", "url": "https://cwe.mitre.org/data/definitions/1173.html" }
+      ]
+    },
+    {
+      "id": "M-10",
+      "title": "Customer PII written to rolling log files, with Debug level forced in code regardless of configuration",
+      "severity": "Medium",
+      "confidence": "Confirmed",
+      "category": "cryptographic",
+      "owasp": "A02:2021 Cryptographic Failures",
+      "cwe": ["CWE-532", "CWE-359"],
+      "attack": [{ "id": "T1005", "name": "Data from Local System" }],
+      "nist": { "ssdf": ["PW.9"], "sp80053": ["AU-9", "SC-28", "SI-11"] },
+      "status": "new",
+      "exposure": "internal",
+      "locations": [
+        { "file": "Program.cs", "line": 17, "excerpt": "Log.Logger = new LoggerConfiguration()\n    .MinimumLevel.Debug()\n    .WriteTo.Console()\n    .WriteTo.File(\"logs/informix-demo-3-.log\", rollingInterval: RollingInterval.Day)\n    .CreateLogger();" },
+        { "file": "Application/Services/D4Cust/D4CustService.cs", "line": 80, "excerpt": "_logger.LogInformation(\"Adding new customer: {Fname} {Lname}, Company: {Company}\",\n    dto.Fname, dto.Lname, dto.Company);" },
+        { "file": "Application/Services/D4Cust/D4CustService.cs", "line": 98, "excerpt": "_logger.LogInformation(\"input_cust: Inserting customer record for {Fname} {Lname}\", dto.Fname, dto.Lname);" },
+        { "file": "Application/Services/D4Report/D4ReportService.cs", "line": 53, "excerpt": "_logger.LogInformation(\"PrintLabels: generating mailing labels with filter {@Filter}\", filter);" }
+      ],
+      "evidence": "The Serilog logger is constructed at Program.cs:17-21 with MinimumLevel.Debug() hard-coded, before the configuration system is available, and builder.Host.UseSerilog() at line 34 is called with no configuration delegate - so it adopts that static logger and the Serilog sections in appsettings.json and appsettings.Development.json are never read. The effective minimum level is Debug in every environment, including Production. Into that sink, D4CustService writes customer first name, last name and company at Information on the add path (two separate statements, lines 80-81 and 98), and D4ReportService destructures the entire search filter with the {@Filter} operator at line 53. Output goes to a daily rolling file under logs/ with no retention limit, no size cap and no encryption, alongside the console.",
+      "risk": "Personal data accumulates in plaintext files that sit outside every control applied to the database - not covered by the encryption-at-rest seam, not subject to a retention policy, and typically swept up by log shipping into systems with broader access than the application itself. The forced Debug level compounds it: EF Core and ASP.NET Core emit parameter values and request details at Debug and Trace, so a production deployment logs substantially more than the appsettings file suggests, and a reader checking appsettings.json for the log level gets the wrong answer.",
+      "impact": { "confidentiality": "High", "integrity": "Low", "availability": "Low" },
+      "remediated": false,
+      "remediation": {
+        "summary": "Read the log configuration from appsettings, and log record identifiers rather than personal data.",
+        "nonBreaking": true,
+        "breakingChange": false,
+        "effort": "S",
+        "planned": true,
+        "steps": [
+          "Replace the hard-coded MinimumLevel.Debug() with ReadFrom.Configuration(builder.Configuration) inside UseSerilog, so the Serilog sections that already exist in both appsettings files take effect and Production runs at Information.",
+          "Keep a minimal bootstrap logger (Serilog's CreateBootstrapLogger) for startup errors before configuration is available - that is the reason the current code builds the logger early, and it is worth preserving.",
+          "Remove personal data from the message templates. Log the customer number, which is already available after the insert, instead of the name and company; drop the {@Filter} destructuring in favour of a match count.",
+          "Add retentainedFileCountLimit and fileSizeLimitBytes to the file sink so logs do not grow without bound.",
+          "Restrict the logs directory to the service account and exclude it from source control."
+        ],
+        "codeBefore": "Log.Logger = new LoggerConfiguration()\n    .MinimumLevel.Debug()\n    .WriteTo.Console()\n    .WriteTo.File(\"logs/informix-demo-3-.log\", rollingInterval: RollingInterval.Day)\n    .CreateLogger();\n\n// ...\nbuilder.Host.UseSerilog();",
+        "codeAfter": "Log.Logger = new LoggerConfiguration()\n    .MinimumLevel.Information()\n    .WriteTo.Console()\n    .CreateBootstrapLogger();\n\n// ...\nbuilder.Host.UseSerilog((context, services, cfg) => cfg\n    .ReadFrom.Configuration(context.Configuration)\n    .ReadFrom.Services(services)\n    .WriteTo.Console()\n    .WriteTo.File(\"logs/informix-demo-3-.log\",\n        rollingInterval: RollingInterval.Day,\n        retainedFileCountLimit: 14,\n        fileSizeLimitBytes: 50_000_000));",
+        "language": "csharp"
+      },
+      "verification": "Run with ASPNETCORE_ENVIRONMENT=Production and confirm no Debug-level entries appear. Add a customer and grep the day's log for the name typed in: no match. Confirm the AUDIT line for that create is still present and carries the customer number. Confirm logs/ holds at most 14 files after a simulated rollover.",
+      "references": [
+        { "label": "CWE-532: Insertion of Sensitive Information into Log File", "url": "https://cwe.mitre.org/data/definitions/532.html" }
+      ]
+    },
+    {
+      "id": "M-11",
+      "title": "Unencrypted SQLite database and its write-ahead log committed in the application directory",
+      "severity": "Medium",
+      "confidence": "Confirmed",
+      "category": "cryptographic",
+      "owasp": "A02:2021 Cryptographic Failures",
+      "cwe": ["CWE-311", "CWE-312"],
+      "attack": [{ "id": "T1005", "name": "Data from Local System" }],
+      "nist": { "ssdf": ["PW.9", "PS.1"], "sp80053": ["SC-28", "MP-4", "CM-3"] },
+      "status": "new",
+      "exposure": "internal",
+      "locations": [
+        { "file": "stores7.db", "line": 1, "excerpt": "SQLite database, 65,536 bytes, at the project root" },
+        { "file": "stores7.db-wal", "line": 1, "excerpt": "write-ahead log sidecar" },
+        { "file": "appsettings.json", "line": 2, "excerpt": "\"ConnectionStrings\": {\n  \"DefaultConnection\": \"Data Source=stores7.db\"\n}" },
+        { "file": "appsettings.json", "line": 13, "excerpt": "\"Security\": {\n  \"_comment\": \"S-6 (encryption at rest): set DatabasePassword to encrypt the SQLite file...\",\n  \"DatabasePassword\": \"\"\n}" },
+        { "file": "Program.cs", "line": 63, "excerpt": "var dbPassword = builder.Configuration[\"Security:DatabasePassword\"];\nif (!string.IsNullOrWhiteSpace(dbPassword))\n{\n    sqliteConnection.Password = dbPassword;\n}" }
+      ],
+      "evidence": "stores7.db (65,536 bytes), stores7.db-shm and stores7.db-wal sit at the root of the source tree. The connection string is the relative path Data Source=stores7.db, so the live database is that file in the process working directory. The encryption seam added by the previous remediation pass is genuine and well documented, but its default is an empty password, which the guard at Program.cs:64 treats as off - and the comment in appsettings.json records that turning it on also requires swapping SQLitePCLRaw.bundle_e_sqlite3 for a SQLCipher-capable bundle and re-creating the database, neither of which has been done. There is no .gitignore anywhere in the audited tree, so nothing excludes these files from version control.",
+      "risk": "The whole dataset - customer names, addresses, telephone numbers and order history - is a single unencrypted file that travels with the source. Anyone with a copy of the repository, a build artifact or a backup reads it with any SQLite client; no application, credential or network control applies. The -wal sidecar matters too and is easy to overlook: it holds committed pages not yet checkpointed into the main file, so deleting or replacing stores7.db alone can leave data behind.",
+      "impact": { "confidentiality": "High", "integrity": "Medium", "availability": "Low" },
+      "remediated": false,
+      "remediation": {
+        "summary": "Get the database out of the source tree and out of the working directory; treat full encryption at rest as a separate, planned change.",
+        "nonBreaking": true,
+        "breakingChange": false,
+        "effort": "S",
+        "planned": true,
+        "steps": [
+          "Add a .gitignore covering stores7.db, stores7.db-wal, stores7.db-shm, logs/, obj/ and bin/, then remove the three database files from version control. The DataSeeder already re-creates and re-seeds the database from the .unl files on first run, so nothing is lost by deleting them.",
+          "Move the database out of the application directory in deployed environments: point Data Source at a path under a data directory the service account owns and nothing else can read, set per environment rather than hard-coded.",
+          "Restrict the file's ACL to the service account.",
+          "Schedule encryption at rest as its own change with the two prerequisites the existing comment names - swap to SQLitePCLRaw.bundle_e_sqlcipher and re-create the database encrypted - and source the key from user-secrets in development and the platform secret store in production, never from appsettings. Note this step is the one part of this finding that is not behaviour-preserving: an existing plaintext database will not open once the provider changes, so it needs a migration window."
+        ],
+        "codeBefore": "\"ConnectionStrings\": {\n  \"DefaultConnection\": \"Data Source=stores7.db\"\n}",
+        "codeAfter": "\"ConnectionStrings\": {\n  \"DefaultConnection\": \"Data Source=/var/lib/wholesalers/stores7.db\"\n}",
+        "language": "json"
+      },
+      "verification": "git status shows the database files as ignored rather than tracked. Delete the local database, start the application, and confirm the DataSeeder re-creates it and the pages render the seeded rows. Confirm the file lands at the configured path and that a second OS account cannot open it. After the separate encryption change, confirm `sqlite3 stores7.db .tables` fails without the key and the application still starts with it.",
+      "references": [
+        { "label": "CWE-312: Cleartext Storage of Sensitive Information", "url": "https://cwe.mitre.org/data/definitions/312.html" }
+      ]
+    },
+    {
+      "id": "M-12",
+      "title": "Financial totals computed client-side, and the tax and shipping rates duplicated as inconsistent constants",
+      "severity": "Medium",
+      "confidence": "Confirmed",
+      "category": "validation",
+      "owasp": "A04:2021 Insecure Design",
+      "cwe": ["CWE-602", "CWE-807"],
+      "attack": [{ "id": "T1565.001", "name": "Data Manipulation: Stored Data Manipulation" }],
+      "nist": { "ssdf": ["PW.1", "PW.5"], "sp80053": ["SI-7", "SI-10"] },
+      "status": "new",
+      "exposure": "internet-facing",
+      "locations": [
+        { "file": "Application/Services/D4Orders/D4OrdersService.cs", "line": 476, "excerpt": "// Legacy: LET order_total = 1.1 * order_total (10% markup)\norderTotal = 1.1m * orderTotal;" },
+        { "file": "Application/Services/D4Orders/D4OrdersService.cs", "line": 683, "excerpt": "decimal salesTax = 0.065m * calcTotal;\ndecimal shipCharge = 0.035m * calcTotal;" },
+        { "file": "Application/Services/D4Orders/D4OrdersService.cs", "line": 769, "excerpt": "decimal salesTax = 0.065m * calcTotal;\ndecimal shipCharge = 0.035m * calcTotal;" },
+        { "file": "Application/Services/D4Orders/D4OrdersService.cs", "line": 533, "excerpt": "Quantity = item.Quantity,\nTotalPrice = item.TotalPrice" },
+        { "file": "Pages/Orders/OrderForm.razor.cs", "line": 416, "excerpt": "item.TotalPrice = item.UnitPrice * item.Quantity;\n_orderTotal = _items.Sum(i => i.TotalPrice);" }
+      ],
+      "evidence": "The 10% figure appears twice - order_totalAsync:236 and ComputeOrderTotalAsync:476 - as the literal 1.1m, with a comment recording it as a port of the legacy LET order_total = 1.1 * order_total. The 6.5% sales tax and 3.5% shipping charge appear twice more, duplicated verbatim between GenerateInvoiceAsync:683-684 and GenerateInvoicePdfAsync:769-770. Four independent statements of two business rules, none derived from the others. Separately, the per-item TotalPrice is computed in the page at OrderForm.razor.cs:416 and, in InsertItemsForOrderAsync:533, written to the database from the client-supplied DTO rather than recomputed from the stock table.",
+      "risk": "The screen total and the invoice total agree today only because 0.065 + 0.035 happens to equal 0.1. Any rate change - a new tax jurisdiction, a shipping revision - has to be made in the right combination of four places, and getting it wrong produces a figure the customer is billed that differs from the one they were shown, silently. The client-computed TotalPrice is the more conventional security concern: a value that determines what a customer owes is calculated where the user can influence it and stored without re-derivation. Both were carried over from the legacy implementation rather than introduced here, but the migration is the moment they could have been fixed and was not.",
+      "impact": { "confidentiality": "Low", "integrity": "High", "availability": "Low" },
+      "remediated": false,
+      "remediation": {
+        "summary": "Put the rates in one place and derive every financial figure on the server from the stock table.",
+        "nonBreaking": true,
+        "breakingChange": false,
+        "effort": "S",
+        "planned": true,
+        "steps": [
+          "Introduce a PricingOptions record bound from configuration with SalesTaxRate and ShippingRate, and inject it wherever a total is computed. Replace all four literals with the option values.",
+          "Derive the on-screen running total from the same rates rather than the separate 1.1m constant, so the two figures cannot drift apart. Keep the displayed value identical at today's rates - 1.065 + 0.035 of the sub-total is what 1.1 already produces - so the change is behaviour-preserving.",
+          "Recompute item TotalPrice server-side from stock.unit_price at write time and ignore the client's value, as shown in the M-5 remediation; treat the client figure as a display hint only.",
+          "Add a unit test that asserts the screen total and the invoice grand total agree for a fixed basket, so a future rate change that reaches only one of them fails the build."
+        ],
+        "codeBefore": "decimal salesTax = 0.065m * calcTotal;\ndecimal shipCharge = 0.035m * calcTotal;\ndecimal grandTotal = calcTotal + shipCharge + salesTax;",
+        "codeAfter": "decimal salesTax = _pricing.SalesTaxRate * calcTotal;\ndecimal shipCharge = _pricing.ShippingRate * calcTotal;\ndecimal grandTotal = calcTotal + shipCharge + salesTax;",
+        "language": "csharp"
+      },
+      "verification": "For a basket of known line totals, the running total on /orders and the grand total on the generated invoice are equal. Change SalesTaxRate in configuration and confirm both figures move together and the test still passes. Submit an order with a tampered TotalPrice on the wire and confirm the stored value matches quantity x the stock table's unit_price instead.",
+      "references": [
+        { "label": "CWE-807: Reliance on Untrusted Inputs in a Security Decision", "url": "https://cwe.mitre.org/data/definitions/807.html" }
+      ]
+    },
+    {
+      "id": "M-13",
+      "title": "Dependency advisories unverified; the vulnerability scan script is not wired into any pipeline",
+      "severity": "Medium",
+      "confidence": "Confirmed",
+      "category": "dependencies",
+      "owasp": "A06:2021 Vulnerable and Outdated Components",
+      "cwe": ["CWE-1104", "CWE-1395"],
+      "attack": [{ "id": "T1195.001", "name": "Supply Chain Compromise: Compromise Software Dependencies and Development Tools" }],
+      "nist": { "ssdf": ["PW.4", "RV.1", "PS.3"], "sp80053": ["SA-22", "SI-2", "RA-5", "CM-8"] },
+      "status": "new",
+      "exposure": "internal",
+      "locations": [
+        { "file": "scan-vulnerable.ps1", "line": 1, "excerpt": "# S-9 — Dependency vulnerability scan.\n# Runs `dotnet list package --vulnerable` (incl. transitive) and fails the build/CI\n# when any High or Critical advisory is found. Wire this into CI so dependency risk\n# is checked continuously, not just once." },
+        { "file": "Informix-demo-3.csproj", "line": 12, "excerpt": "<PackageReference Include=\"MudBlazor\" Version=\"8.0.0\" />\n<PackageReference Include=\"Serilog.AspNetCore\" Version=\"9.0.0\" />\n<PackageReference Include=\"QuestPDF\" Version=\"2024.12.0\" />" }
+      ],
+      "evidence": "scan-vulnerable.ps1 exists and is correctly written - it restores, runs dotnet list package --vulnerable --include-transitive, and exits non-zero on a High or Critical match. Its own header comment instructs the reader to \"Wire this into CI\". No pipeline definition exists inside the audited tree to do so: no .github directory, no azure-pipelines.yml, no .gitlab-ci.yml, no Dockerfile and no build script at any depth under the target path. The script is therefore run only when someone remembers to run it. Nine direct dependencies are declared in the .csproj, all on current major versions; there is no lockfile, so transitive versions are resolved at restore time and are not recorded in the tree.",
+      "risk": "A dependency check that depends on someone remembering is a check that stops happening. The specific limitation of this audit compounds it: no advisory database was queried during this run, so the package versions above are reported as an inventory, not as a clean bill of health. MudBlazor 8.0.0, QuestPDF 2024.12.0 and the Serilog and EF Core packages may or may not carry known advisories - that question is open, and the way to close it is to run the script that is already written. Note the audited path is the application directory; a pipeline definition living in a parent repository directory would be outside the scope of this review and was deliberately not looked for.",
+      "impact": { "confidentiality": "Medium", "integrity": "Medium", "availability": "Medium" },
+      "remediated": false,
+      "remediation": {
+        "summary": "Run the existing script in CI on every pull request and on a schedule, and pin transitive versions so a restore cannot silently change them.",
+        "nonBreaking": true,
+        "breakingChange": false,
+        "effort": "S",
+        "planned": true,
+        "steps": [
+          "Add a CI job that runs scan-vulnerable.ps1 on every pull request and nightly, and fails the build on its non-zero exit. Nightly matters as much as per-PR: advisories are published against versions you already shipped.",
+          "Enable NuGet lockfiles (<RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>) and commit packages.lock.json, so the transitive graph is recorded and reviewable rather than resolved afresh each restore.",
+          "Run the scan once now and record the result, so the inventory in this report becomes a verified statement rather than an open question.",
+          "Generate an SBOM as a build artifact so deployed versions can be matched against future advisories without a rebuild - this also lifts the integrity category, which currently scores 95 for lack of exactly this evidence."
+        ],
+        "codeBefore": "<PropertyGroup>\n  <TargetFramework>net10.0</TargetFramework>\n  <Nullable>enable</Nullable>\n  <ImplicitUsings>enable</ImplicitUsings>\n</PropertyGroup>",
+        "codeAfter": "<PropertyGroup>\n  <TargetFramework>net10.0</TargetFramework>\n  <Nullable>enable</Nullable>\n  <ImplicitUsings>enable</ImplicitUsings>\n  <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>\n</PropertyGroup>",
+        "language": "xml"
+      },
+      "verification": "The CI run shows the scan step and its output. Introduce a package version with a known advisory on a branch and confirm the build fails; remove it and confirm the build passes. packages.lock.json is committed and a restore on a clean machine reproduces identical transitive versions.",
+      "references": [
+        { "label": "OWASP A06:2021 Vulnerable and Outdated Components", "url": "https://owasp.org/Top10/A06_2021-Vulnerable_and_Outdated_Components/" }
+      ]
+    },
+    {
+      "id": "M-14",
+      "title": "Content-Security-Policy omits frame-ancestors, base-uri and form-action, and retains style-src 'unsafe-inline'",
+      "severity": "Low",
+      "confidence": "Confirmed",
+      "category": "misconfiguration",
+      "owasp": "A05:2021 Security Misconfiguration",
+      "cwe": ["CWE-1021", "CWE-693"],
+      "nist": { "ssdf": ["PW.5"], "sp80053": ["SC-18", "CM-6"] },
+      "status": "new",
+      "exposure": "internet-facing",
+      "locations": [
+        { "file": "Middleware/SecurityHeadersMiddleware.cs", "line": 36, "excerpt": "context.Response.Headers[\"Content-Security-Policy\"] =\n    \"default-src 'self'; \" +\n    $\"script-src 'self' 'nonce-{nonce}'; \" +\n    \"style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; \" +\n    \"font-src 'self' https://fonts.gstatic.com data:; \" +\n    \"img-src 'self' data:; \" +\n    \"connect-src 'self' wss: ws:;\"" },
+        { "file": "Middleware/SecurityHeadersMiddleware.cs", "line": 25, "excerpt": "context.Response.Headers[\"X-Frame-Options\"] = \"SAMEORIGIN\";" }
+      ],
+      "evidence": "The policy sets default-src, script-src, style-src, font-src, img-src and connect-src. It omits frame-ancestors, base-uri and form-action. This matters because default-src does not fall back for any of those three - the CSP specification defines fallback to default-src only for the fetch directives, so their absence means unrestricted, not 'self'. X-Frame-Options: SAMEORIGIN at line 25 covers framing for browsers that still honour it, but frame-ancestors is the directive modern browsers consult and it supersedes the older header where both are understood. style-src retains 'unsafe-inline', which the authors documented as a deliberate concession to MudBlazor's runtime style injection.",
+      "risk": "Modest on its own, and the header set is otherwise good - the per-request nonce and the removal of 'unsafe-eval' are real work, correctly done. The gaps are: base-uri unrestricted allows an injected <base> tag to re-point every relative URL on the page, which is the standard way to turn a minor injection into a broad one; form-action unrestricted allows a posted form to target an attacker's origin; frame-ancestors unset leaves clickjacking defence resting on a legacy header. The style-src concession is a genuine trade-off rather than an oversight and is recorded here for completeness, not as something to fix today.",
+      "impact": { "confidentiality": "Low", "integrity": "Low", "availability": "Low" },
+      "remediated": false,
+      "remediation": {
+        "summary": "Add the three missing directives. Purely additive - no existing behaviour depends on them being absent.",
+        "nonBreaking": true,
+        "breakingChange": false,
+        "effort": "S",
+        "planned": true,
+        "steps": [
+          "Add frame-ancestors 'self' (or 'none' if the app is never framed), base-uri 'self' and form-action 'self' to the policy string.",
+          "Keep X-Frame-Options alongside frame-ancestors for older browsers; the two do not conflict.",
+          "Leave style-src 'unsafe-inline' in place for now - removing it breaks MudBlazor's dynamic styles - but revisit it when MudBlazor supports nonce-based or hash-based styles, and record that as the reason in the comment so the decision is not re-litigated.",
+          "Consider adding a report-uri or report-to endpoint so violations are visible rather than silent."
+        ],
+        "codeBefore": "\"default-src 'self'; \" +\n$\"script-src 'self' 'nonce-{nonce}'; \" +\n\"style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; \" +\n\"font-src 'self' https://fonts.gstatic.com data:; \" +\n\"img-src 'self' data:; \" +\n\"connect-src 'self' wss: ws:;\"",
+        "codeAfter": "\"default-src 'self'; \" +\n$\"script-src 'self' 'nonce-{nonce}'; \" +\n\"style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; \" +\n\"font-src 'self' https://fonts.gstatic.com data:; \" +\n\"img-src 'self' data:; \" +\n\"connect-src 'self' wss: ws:; \" +\n\"frame-ancestors 'self'; \" +\n\"base-uri 'self'; \" +\n\"form-action 'self'; \" +\n\"object-src 'none';\"",
+        "language": "csharp"
+      },
+      "verification": "curl -sI https://localhost:5001/ shows all four new directives in the Content-Security-Policy header. Every page still renders correctly with no CSP violations in the browser console, and the PDF download from /reports still works.",
+      "references": [
+        { "label": "MDN: Content-Security-Policy", "url": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Security-Policy" }
+      ]
+    },
+    {
+      "id": "M-15",
+      "title": "Health endpoint is anonymous and reports database reachability",
+      "severity": "Low",
+      "confidence": "Confirmed",
+      "category": "misconfiguration",
+      "owasp": "A05:2021 Security Misconfiguration",
+      "cwe": ["CWE-200"],
+      "attack": [{ "id": "T1592", "name": "Gather Victim Host Information" }],
+      "nist": { "ssdf": ["PW.5"], "sp80053": ["AC-3", "SC-7"] },
+      "status": "new",
+      "exposure": "internet-facing",
+      "locations": [
+        { "file": "Program.cs", "line": 131, "excerpt": "app.MapHealthChecks(\"/health\");" },
+        { "file": "Program.cs", "line": 73, "excerpt": "builder.Services.AddHealthChecks()\n    .AddDbContextCheck<Informix_demo_3DbContext>(\"database\");" }
+      ],
+      "evidence": "/health is mapped with no authorization and no result filter. The registered check is AddDbContextCheck, which opens the DbContext and reports whether the database can be reached, so the response distinguishes 'application up, database up' from 'application up, database down'.",
+      "risk": "Low, and health endpoints are normally meant to be reachable - the point of the finding is that this one should be reachable by the load balancer and not by the internet. An anonymous caller learns that the service exists, that it is a .NET application with a database behind it, and can watch the database's availability over time, which is useful reconnaissance and a convenient oracle during an outage. Worth resolving at the same time as M-1, since the fallback authorization policy introduced there would otherwise lock the load balancer out of it.",
+      "impact": { "confidentiality": "Low", "integrity": "Low", "availability": "Low" },
+      "remediated": false,
+      "remediation": {
+        "summary": "Keep the endpoint anonymous but make it say less, and restrict who can reach it at the network layer.",
+        "nonBreaking": true,
+        "breakingChange": false,
+        "effort": "S",
+        "planned": true,
+        "steps": [
+          "Split into two endpoints: /health returning a bare Healthy/Unhealthy for the load balancer (AllowAnonymous, no check details), and /health/ready with the detailed writer behind the authorization policy from M-1.",
+          "Restrict /health to the load balancer's address range in the ingress or firewall, so 'anonymous' means 'the load balancer' rather than 'anyone'.",
+          "Mark it .AllowAnonymous() explicitly when the fallback policy from M-1 lands, otherwise the health probe starts failing on the day authentication is added - this is the common way that change breaks a deployment."
+        ],
+        "codeBefore": "app.MapHealthChecks(\"/health\");",
+        "codeAfter": "app.MapHealthChecks(\"/health\", new HealthCheckOptions\n{\n    Predicate = _ => false,\n    ResponseWriter = (ctx, _) => ctx.Response.WriteAsync(\"ok\")\n}).AllowAnonymous();\n\napp.MapHealthChecks(\"/health/ready\").RequireAuthorization();",
+        "language": "csharp"
+      },
+      "verification": "GET /health returns 200 with the body \"ok\" and no check details, from the load balancer's address and nowhere else. GET /health/ready without a session returns 302 or 401; with a session it returns the full check results.",
+      "references": [
+        { "label": "CWE-200: Exposure of Sensitive Information to an Unauthorized Actor", "url": "https://cwe.mitre.org/data/definitions/200.html" }
+      ]
+    },
+    {
+      "id": "M-16",
+      "title": "Raw exception messages rendered into the UI",
+      "severity": "Low",
+      "confidence": "Confirmed",
+      "category": "misconfiguration",
+      "owasp": "A05:2021 Security Misconfiguration",
+      "cwe": ["CWE-209"],
+      "nist": { "ssdf": ["PW.5"], "sp80053": ["SI-11"] },
+      "status": "new",
+      "exposure": "internet-facing",
+      "locations": [
+        { "file": "Pages/Reports/Reports.razor.cs", "line": 120, "excerpt": "catch (Exception ex) { _errorMessage = $\"Print labels failed: {ex.Message}\"; }" },
+        { "file": "Pages/Reports/Reports.razor.cs", "line": 142, "excerpt": "catch (Exception ex) { _errorMessage = $\"Print A/R failed: {ex.Message}\"; }" },
+        { "file": "Pages/Reports/Reports.razor.cs", "line": 160, "excerpt": "catch (Exception ex) { _errorMessage = $\"Print backlog failed: {ex.Message}\"; }" },
+        { "file": "Pages/Reports/Reports.razor.cs", "line": 178, "excerpt": "catch (Exception ex) { _errorMessage = $\"Print stock failed: {ex.Message}\"; }" }
+      ],
+      "evidence": "Four catch blocks on the Reports page interpolate ex.Message straight into a field rendered to the user. The exception type is the base Exception, so this covers SqliteException, IOException and anything else the report path can throw. This is a separate channel from Blazor's DetailedErrors setting, which the previous remediation pass correctly gated to Development (Program.cs:40-41) - that switch governs framework-level circuit errors and does not affect a message the application itself chooses to display.",
+      "risk": "Low but real. A SqliteException message names the database file path and often the failing SQL or the constraint; an IOException names a filesystem path. Neither is catastrophic, but both hand a reader details about the deployment that the rest of the error handling is designed not to give, and they do so in Production where DetailedErrors is off - so the application is less consistent about this than a reviewer reading Program.cs would conclude.",
+      "impact": { "confidentiality": "Low", "integrity": "Low", "availability": "Low" },
+      "remediated": false,
+      "remediation": {
+        "summary": "Show a generic message with a correlation id; keep the detail in the log.",
+        "nonBreaking": true,
+        "breakingChange": false,
+        "effort": "S",
+        "planned": true,
+        "steps": [
+          "Log the exception with its full detail and a generated correlation id, and show the user the generic message plus that id, so support can still find the cause without the user seeing it.",
+          "Apply the same pattern to the other catch blocks in the page layer - grep for ex.Message across Pages/ and fix them together.",
+          "Keep the message specific enough to be actionable for expected, user-caused failures (\"No customers matched the filter\") by catching those cases explicitly rather than falling through to the generic handler."
+        ],
+        "codeBefore": "catch (Exception ex) { _errorMessage = $\"Print labels failed: {ex.Message}\"; }",
+        "codeAfter": "catch (Exception ex)\n{\n    var correlationId = Guid.NewGuid().ToString(\"N\")[..8];\n    Logger.LogError(ex, \"Print labels failed. CorrelationId={CorrelationId}\", correlationId);\n    _errorMessage = $\"Print labels failed. Reference {correlationId}.\";\n}",
+        "language": "csharp"
+      },
+      "verification": "Rename the database file to force a failure and click Labels: the page shows the generic message and a reference code, with no path or SQL text. The day's log contains the full exception under that same reference code.",
+      "references": [
+        { "label": "CWE-209: Generation of Error Message Containing Sensitive Information", "url": "https://cwe.mitre.org/data/definitions/209.html" }
+      ]
+    },
+    {
+      "id": "M-17",
+      "title": "Legacy terminal-era row caps carried into the modernized queries",
+      "severity": "Low",
+      "confidence": "Confirmed",
+      "category": "validation",
+      "owasp": "A04:2021 Insecure Design",
+      "cwe": ["CWE-1284"],
+      "nist": { "ssdf": ["PW.5"], "sp80053": ["SI-10"] },
+      "status": "new",
+      "exposure": "internet-facing",
+      "locations": [
+        { "file": "Application/Services/D4Main/D4MainService.cs", "line": 167, "excerpt": "var entities = await db.state\n    .AsNoTracking()\n    .OrderBy(s => s.Sname)\n    .Take(50)\n    .ToListAsync(ct);" },
+        { "file": "Application/Services/D4Main/D4MainService.cs", "line": 218, "excerpt": ".Include(s => s.Manufact)\n    .OrderBy(s => s.StockNum)\n    .Take(30)\n    .ToListAsync(ct);" },
+        { "file": "Application/Services/D4Orders/D4OrdersService.cs", "line": 382, "excerpt": "if (count > 10)\n{\n    _logger.LogWarning(\"Order {OrderNum} has more than 10 items; only first 10 loaded (legacy limit)\",\n        oe.OrderNum);\n    break;\n}" }
+      ],
+      "evidence": "Three caps were ported directly from the 4GL fixed-size arrays. get_statesAsync applies .Take(50), matching the legacy p_state ARRAY[50]; get_stocksAsync applies .Take(30), matching p_stock ARRAY[30]; GetOrdersByCustomerAsync stops after 10 item rows, matching p_items ARRAY[10]. The comments and the log message identify all three as deliberate ports of the legacy limits.",
+      "risk": "These existed in the legacy system because 4GL required a compile-time array size; nothing in the Blazor application does. A catalogue of 31 stock items presents as 30, and the 31st cannot be selected on an order. The item cap is the one with a financial edge - an order with more than ten lines displays and invoices only the first ten, silently on the read path. Severity is Low because no attacker controls it and no data is exposed, but it is worth fixing on the same pass as M-5 since both concern order lines, and it is a clear case of a migration preserving a constraint that the migration itself removed the reason for.",
+      "impact": { "confidentiality": "Low", "integrity": "Medium", "availability": "Low" },
+      "remediated": false,
+      "remediation": {
+        "summary": "Remove the caps and page the grids instead, since the UI component already supports it.",
+        "nonBreaking": true,
+        "breakingChange": false,
+        "effort": "S",
+        "planned": true,
+        "steps": [
+          "Drop .Take(50) and .Take(30) - the state and stock tables are small reference data and are already ordered.",
+          "Remove the 10-item break in GetOrdersByCustomerAsync so an order returns all its lines; the invoice and the AR report both depend on the full set.",
+          "If a bound is wanted for large tables, use MudBlazor's server-side paging on MudTable rather than a silent Take, so the user can see there is more and reach it.",
+          "Leave a comment recording that the legacy array sizes are intentionally not reproduced, so the next person porting a function does not restore them."
+        ],
+        "codeBefore": "var entities = await db.stock\n    .AsNoTracking()\n    .Include(s => s.Manufact)\n    .OrderBy(s => s.StockNum)\n    .Take(30)\n    .ToListAsync(ct);",
+        "codeAfter": "// Legacy p_stock ARRAY[30] was a 4GL compile-time limit; deliberately not reproduced.\nvar entities = await db.stock\n    .AsNoTracking()\n    .Include(s => s.Manufact)\n    .OrderBy(s => s.StockNum)\n    .ToListAsync(ct);",
+        "language": "csharp"
+      },
+      "verification": "Seed 35 stock rows and confirm the stock picker lists all 35. Create an order with 12 line items, reopen it, and confirm all 12 are shown and all 12 appear on the invoice with a matching total.",
+      "references": [
+        { "label": "CWE-1284: Improper Validation of Specified Quantity in Input", "url": "https://cwe.mitre.org/data/definitions/1284.html" }
+      ]
+    }
+  ],
+  "strengths": [
+    {
+      "title": "Parameterized data access throughout - no injection sink anywhere",
+      "detail": "All data access is EF Core LINQ over a strongly typed model. Zero FromSqlRaw, ExecuteSqlRaw, SqlQuery, raw DbCommand or string-concatenated SQL across 6,808 lines of C#. The legacy system's four PREPARE-from-concatenated-string sites (d4_cust.4gl, d4_report.4gl, menu1.4gl.main, query1.4gl.main) all became typed IQueryable predicates - D4CustService.query_customerAsync:152-232 is the clearest example, translating the legacy CONSTRUCT into composable Where clauses including the MATCHES-to-LIKE wildcard mapping.",
+      "category": "injection"
+    },
+    {
+      "title": "The legacy shell escape was not carried across",
+      "detail": "d4_main.4gl's bang() ran arbitrary OS commands via PROMPT/RUN. Its port at D4MainService.cs:74-83 logs a warning and sets a status message saying shell execution is not available - it does not call Process.Start or any equivalent. Zero process-launch primitives appear anywhere in the tree. This closed the legacy system's most severe finding outright.",
+      "category": "injection"
+    },
+    {
+      "title": "No XSS sinks; automatic encoding intact",
+      "detail": "Zero MarkupString, Html.Raw or innerHTML usages across 16 .razor files and 2 .cshtml files. The single JS interop call (Reports.razor.cs:32) passes a filename, a content type and a base64 string to a fixed helper function that builds a download link - it does not inject markup.",
+      "category": "xss"
+    },
+    {
+      "title": "Content-Security-Policy with a real per-request nonce",
+      "detail": "SecurityHeadersMiddleware generates 16 bytes from RandomNumberGenerator per request, exposes it via HttpContext.Items, and _Layout.cshtml stamps it on all three script tags. 'unsafe-eval' was removed and script 'unsafe-inline' replaced by the nonce. The deprecated X-XSS-Protection header is deliberately omitted with a comment explaining why - a detail many hardening passes get wrong in the other direction.",
+      "category": "xss"
+    },
+    {
+      "title": "No hardcoded credentials anywhere",
+      "detail": "The legacy tree shipped a working DBA password in demo.properties. The modernized tree has none: the connection string is a local file path, and the optional database password is read from configuration (Program.cs:63) with the appsettings entry deliberately left empty and commented to point at user-secrets and Key Vault. Zero credential-shaped literals across all .cs, .json and .ps1 files.",
+      "category": "misconfiguration"
+    },
+    {
+      "title": "Server-side validation enforced at the service boundary",
+      "detail": "SecurityGuard.Validate runs each write DTO through its DataAnnotations inside the service, not the page, so invalid input is rejected regardless of what the UI sends. CustomerDto, StockDto and OrderDto carry length and range limits mirroring the stores7 schema. The gap is nested collections (M-9), but the pattern and its placement are right.",
+      "category": "validation"
+    },
+    {
+      "title": "Structured audit logging on every create, update and delete",
+      "detail": "Eleven SecurityGuard.Audit call sites across the customer, orders and stock services emit a greppable AUDIT actor=... action=... entity=... key=... at=... line. The legacy system wrote nothing at all for any modification, so this is a control that did not previously exist - its remaining limitation is attribution (M-8), not existence.",
+      "category": "logging"
+    },
+    {
+      "title": "Transactional writes with rollback, and concurrency conflict handling",
+      "detail": "add_orderAsync and delete_orderAsync wrap their work in an explicit transaction with RollbackAsync in the catch. update_customerAsync, delete_customerAsync, update_stockAsync and delete_stockAsync each catch DbUpdateConcurrencyException, reload the entity and retry once - a control the legacy system had no equivalent of.",
+      "category": "validation"
+    },
+    {
+      "title": "Referential integrity preserved from the legacy rules",
+      "detail": "delete_customerAsync counts dependent orders before deleting and throws with the count if any exist (D4CustService.cs:367-378), exactly reproducing the legacy guard in d4_cust.4gl:221-228. The delete confirmation dialog is retained at CustomerForm.razor.cs:164. Behaviour a migration could easily have dropped was carried across deliberately.",
+      "category": "validation"
+    },
+    {
+      "title": "Framework error detail correctly gated to Development",
+      "detail": "AddServerSideBlazor sets DetailedErrors from IsDevelopment() (Program.cs:40-41), so circuit exceptions never reach a production client. UseExceptionHandler(\"/Error\") and UseHsts are registered for non-Development. The one remaining leak is application-chosen messages (M-16), not the framework path.",
+      "category": "misconfiguration"
+    },
+    {
+      "title": "No outbound network surface",
+      "detail": "No HttpClient is registered or constructed, no AddHttpClient call exists, and no socket, WebRequest or webhook path appears anywhere. The only Uri usages parse the application's own NavigationManager.Uri. SSRF is clean on positive evidence rather than by assumption.",
+      "category": "ssrf"
+    }
+  ],
+  "roadmap": [
+    {
+      "phase": 1,
+      "name": "Identity and access control",
+      "findings": ["M-2", "M-1", "M-3", "M-6"],
+      "effort": "L",
+      "scoreAfter": 82,
+      "rationale": "Everything else is secondary while every record is anonymously readable and writable over the network. Order matters within the phase: M-2 (authentication) is the prerequisite for the other three, and it also unblocks M-8's audit attribution and M-7's intended per-user rate partitioning. M-1 is the cheapest large win in the whole plan - one fallback policy covers every route without editing a single page. Do M-3 and M-6 in the same phase so that adding sign-in does not simply make every authenticated user an administrator."
+    },
+    {
+      "phase": 2,
+      "name": "Transport and data protection",
+      "findings": ["M-4", "M-10", "M-11"],
+      "effort": "M",
+      "scoreAfter": 86,
+      "rationale": "With access control in place, the next exposure is everything that leaves the application in cleartext: the wire (M-4), the log files (M-10) and the database file itself (M-11). M-4 is a configuration change measured in minutes and it makes the UseHttpsRedirection and UseHsts calls already in the pipeline start working. Full encryption at rest is deliberately deferred to its own change within this phase because, unlike everything else in this plan, it is not behaviour-preserving."
+    },
+    {
+      "phase": 3,
+      "name": "Correctness of financial writes",
+      "findings": ["M-5", "M-9", "M-12", "M-17"],
+      "effort": "M",
+      "scoreAfter": 90,
+      "rationale": "Four findings, one change window. M-5 (items never persisted) and M-9 (items bypass validation and audit) must land together - fixing M-5 alone would activate an unvalidated, unaudited write path to the financial rows. M-12 and M-17 touch the same methods, so folding them in costs little extra. This phase is where the plan stops being about attackers and starts being about the orders being wrong, which is the thing most likely to be noticed by the business first."
+    },
+    {
+      "phase": 4,
+      "name": "Hardening and supply chain",
+      "findings": ["M-7", "M-8", "M-13", "M-14", "M-15", "M-16"],
+      "effort": "S",
+      "scoreAfter": 93,
+      "rationale": "The residual set: six small, independent changes with no ordering constraints between them, each an hour or less. M-8 becomes trivial once phase 1 has landed, and M-15 should be done alongside phase 1 in practice - the fallback authorization policy will otherwise lock the load balancer out of the health endpoint on the day it ships. M-13 is the one with lasting value beyond its score contribution: wiring the existing scan script into CI is what keeps the dependency answer current after this report is filed."
+    }
+  ],
+  "evidenceLog": [
+    { "check": "Authorization attributes", "ruleId": "DN-AUTHZ-01", "method": "grep", "query": "\\[Authorize|\\[AllowAnonymous", "result": "0 matches across 83 files - the attribute is not used in either direction", "conclusion": "Finding M-1 (present-required rule)" },
+    { "check": "Authentication and authorization services", "ruleId": "DN-AUTHN-01", "method": "read", "query": "Program.cs service registration and middleware pipeline read in full", "result": "0 occurrences of AddAuthentication, AddAuthorization, UseAuthentication, UseAuthorization; MapBlazorHub() has no RequireAuthorization()", "conclusion": "Findings M-1 and M-2" },
+    { "check": "Raw SQL execution", "ruleId": "DN-INJ-01", "method": "grep", "query": "FromSqlRaw|ExecuteSqlRaw|SqlQuery|DbCommand", "result": "0 matches across 6,808 lines of C#", "conclusion": "No injection sink; strength recorded; injection category scored 100 on positive evidence" },
+    { "check": "OS command execution", "ruleId": "UNI-EXEC-01", "method": "grep", "query": "Process\\.Start|ProcessStartInfo|cmd\\.exe|/bin/sh", "result": "0 matches; the legacy bang() port at D4MainService.cs:74-83 refuses and logs", "conclusion": "Legacy L-1 resolved by the migration; strength recorded" },
+    { "check": "XSS sinks", "ruleId": "DN-XSS-01", "method": "grep", "query": "MarkupString|Html\\.Raw|innerHTML|eval\\(", "result": "0 matches across 16 .razor and 2 .cshtml files", "conclusion": "XSS category scored 100 on positive evidence; strength recorded" },
+    { "check": "Hardcoded secrets", "ruleId": "UNI-SEC-01", "method": "grep", "query": "(?i)(password|secret|apikey|token|credential)", "result": "0 credential literals; the only matches are the empty Security:DatabasePassword config key and its explanatory comment", "conclusion": "Legacy L-2 resolved by the migration; strength recorded" },
+    { "check": "Transport security configuration", "ruleId": "CFG-TLS-01", "method": "read", "query": "appsettings.json, appsettings.Development.json, launchSettings.json, Program.cs pipeline", "result": "1 endpoint declared: http://0.0.0.0:5000. No HTTPS endpoint or certificate reference anywhere. UseHttpsRedirection and UseHsts both present", "conclusion": "Finding M-4" },
+    { "check": "Rate limiter partition key", "ruleId": "CFG-DOS-01", "method": "read", "query": "Program.cs:77-90 read in full and traced against the absence of authentication", "result": "partitionKey resolves to the client-supplied Host header on every request; AllowedHosts is \"*\"", "conclusion": "Finding M-7" },
+    { "check": "Audit logging coverage", "ruleId": "UNI-LOG-01", "method": "grep", "query": "SecurityGuard\\.Audit", "result": "11 call sites covering create/update/delete on customer, orders and stock; 0 on the items write path; 0 on report export; actor is the literal \"anonymous\" at every one", "conclusion": "Findings M-8 and M-9; strength also recorded for the coverage that exists" },
+    { "check": "Input validation coverage", "ruleId": "DN-VAL-01", "method": "read", "query": "all five write DTOs and SecurityGuard.Validate", "result": "CustomerDto, StockDto, OrderDto annotated; OrderItemDto has zero annotations; Validator.TryValidateObject does not recurse into OrderDto.Items", "conclusion": "Finding M-9; strength recorded for the service-boundary placement" },
+    { "check": "Order item persistence path", "ruleId": "DN-FLOW-01", "method": "grep", "query": "InsertItemsForOrderAsync|insert_itemsAsync", "result": "InsertItemsForOrderAsync has 0 callers (3 matches: its declaration, its interface declaration, one comment). insert_itemsAsync is a stub that returns without writing", "conclusion": "Finding M-5" },
+    { "check": "PII in log statements", "ruleId": "UNI-PII-01", "method": "read", "query": "all LogInformation/LogDebug templates in the service layer", "result": "D4CustService.cs:80-81 and :98 log customer name and company; D4ReportService.cs:53 destructures the whole filter; Serilog minimum level is hard-coded Debug at Program.cs:18", "conclusion": "Finding M-10" },
+    { "check": "Data at rest", "ruleId": "CFG-CRY-01", "method": "glob", "query": "database and sidecar files under ROOT", "result": "stores7.db (65,536 bytes), stores7.db-shm, stores7.db-wal at the project root; no .gitignore anywhere in the tree; Security:DatabasePassword empty", "conclusion": "Finding M-11" },
+    { "check": "Security response headers", "ruleId": "CFG-HDR-01", "method": "read", "query": "SecurityHeadersMiddleware.cs read in full", "result": "X-Content-Type-Options, X-Frame-Options, Referrer-Policy, Permissions-Policy and a nonce-based CSP present; frame-ancestors, base-uri, form-action and object-src absent", "conclusion": "Finding M-14; strength recorded for the nonce implementation" },
+    { "check": "Dependency inventory and scanning", "ruleId": "UNI-DEP-01", "method": "read", "query": "Informix-demo-3.csproj, scan-vulnerable.ps1, and a search for pipeline definitions under ROOT", "result": "9 direct dependencies on current major versions; scan script present and correct; 0 pipeline definitions inside the audited path; no lockfile", "conclusion": "Finding M-13. No advisory database was queried during this run" },
+    { "check": "Outbound network requests", "ruleId": "UNI-SSRF-01", "method": "grep", "query": "HttpClient|AddHttpClient|WebRequest|Socket|Uri\\(", "result": "2 matches, both parsing NavigationManager.Uri in MainLayout.razor; no HTTP client anywhere", "conclusion": "SSRF category scored 100 on positive evidence; strength recorded" },
+    { "check": "Error detail exposure", "ruleId": "DN-ERR-01", "method": "grep", "query": "ex\\.Message|DetailedErrors", "result": "DetailedErrors correctly gated to Development at Program.cs:41; 4 catch blocks in Reports.razor.cs interpolate ex.Message into the UI", "conclusion": "Finding M-16; strength recorded for the DetailedErrors gate" }
+  ],
+  "cost": {
+    "source": "transcript",
+    "startedAt": "2026-09-16T21:44:17Z",
+    "finishedAt": "2026-09-16T21:55:52Z",
+    "transcript": "C:\\Users\\GilberthEliasSeguraD\\.claude\\projects\\C--Users-GilberthEliasSeguraD-Documents-Security-audits\\5c7e7036-0bc1-4085-a1ce-5ee8d721f989.jsonl",
+    "fromLine": 162,
+    "byModel": [
+      {
+        "model": "claude-opus-5",
+        "priced": true,
+        "messages": 16,
+        "tokens": {
+          "input": 32,
+          "cacheWrite5m": 0,
+          "cacheWrite1h": 123315,
+          "cacheRead": 3272567,
+          "output": 58729,
+          "total": 3454643
+        },
+        "rates": {
+          "input": 5.0,
+          "cacheWrite5m": 6.25,
+          "cacheWrite1h": 10.0,
+          "cacheRead": 0.5,
+          "output": 25.0
+        },
+        "costUSD": {
+          "input": 0.00016,
+          "cacheWrite5m": 0.0,
+          "cacheWrite1h": 1.23315,
+          "cacheRead": 1.636284,
+          "output": 1.468225,
+          "total": 4.337819
+        }
+      }
+    ],
+    "totals": {
+      "totalTokens": 3454643,
+      "totalCostUSD": 4.3378
+    },
+    "unpricedModels": 0,
+    "pricingVersion": "2026-06-24",
+    "note": "Measured from the session transcript. Assistant messages are deduplicated by message id. Dollar figures use the list rates in assets/pricing.json and exclude any enterprise discount, Batch API discount or partner-platform pricing."
+  },
+  "limitations": [
+    "Static analysis only. The application was not built, deployed, or exercised at runtime. No request was issued against a running instance, so every finding rests on reading the code and configuration rather than on observed behaviour.",
+    "Dependency advisories were NOT verified against a live vulnerability database. The nine declared packages are reported as an inventory, not as a clean bill of health - no advisory MCP server was configured and no network calls were made. M-13 records this as an open question and names the script already in the repository that closes it.",
+    "The vulnerability of transitive dependencies is doubly unknown: no lockfile exists in the tree, so the resolved transitive graph is not recorded and could not be inspected.",
+    "M-4 states that UseHttpsRedirection does not redirect because no HTTPS endpoint is bound. That is the documented behaviour of the middleware and is consistent with the configuration read, but it was not confirmed against a running instance.",
+    "Only files under the target path were examined. A CI pipeline definition, a Dockerfile, a .gitignore or a deployment manifest living in a parent directory of the repository would be outside this scope; M-13's finding of \"no pipeline\" is a statement about the audited directory, not about the repository as a whole.",
+    "Infrastructure, network policy, reverse-proxy or ingress configuration, TLS termination outside Kestrel, WAF rules, filesystem permissions and deployed secrets were all out of scope. If TLS is terminated at a proxy in the real deployment, M-4's severity would fall - the configuration in the tree gives no indication either way, which is itself worth fixing.",
+    "12 files were skipped: obj/ build output, the three SQLite database binaries (presence and size recorded, contents not parsed), the stylesheet and the seed data files.",
+    "Business-logic correctness was assessed only where intent was inferable from the code and its extensive porting comments. M-5 and M-12 were found this way; there may be further correctness gaps in paths whose intended behaviour is not documented.",
+    "The previous remediation pass documented in SECURITY.md (findings S-1 through S-10 from an earlier review) was read as context and its claims were verified against the code rather than taken at face value. This audit is independent of it and renumbers everything; findings here do not map one-to-one onto those identifiers."
+  ]
+}
+</script>
+
+<div id="root"></div>
+
+<script>
+/* ============================================================================
+   Renderer. Reads the JSON block above and builds the report.
+   Authoring rule: the audit writes DATA, never markup. Everything below is
+   generic - it never needs to change per project.
+   ========================================================================= */
+(function () {
+  "use strict";
+
+  var DATA;
+  try {
+    DATA = JSON.parse(document.getElementById("audit-data").textContent);
+  } catch (err) {
+    document.getElementById("root").innerHTML =
+      '<div class="wrap"><div class="card" style="margin-top:40px">' +
+      '<h3>This report could not be rendered</h3>' +
+      '<p>The embedded findings JSON is not valid: <code></code></p>' +
+      '<p style="color:var(--text-muted)">Re-run the audit, or validate ' +
+      '<code>.security-audit/findings.json</code> before concatenating the report.</p>' +
+      '</div></div>';
+    document.querySelector("#root code").textContent = err.message;
+    return;
+  }
+
+  /* ---------------------------------------------------------------- utils */
+  var SEVS = ["Critical", "High", "Medium", "Low", "Info"];
+  var SEV_RANK = { Critical: 0, High: 1, Medium: 2, Low: 3, Info: 4 };
+
+  function esc(s) {
+    if (s === null || s === undefined) return "";
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+  function el(html) { var t = document.createElement("template"); t.innerHTML = html.trim(); return t.content; }
+  function arr(x) { return Array.isArray(x) ? x : []; }
+  function has(x) { return x !== null && x !== undefined && x !== ""; }
+  function num(n, d) { return (typeof n === "number" && isFinite(n)) ? n.toLocaleString(undefined, { maximumFractionDigits: d === undefined ? 0 : d }) : "-"; }
+  function money(n) {
+    if (typeof n !== "number" || !isFinite(n)) return "-";
+    if (n > 0 && n < 0.01) return "&lt;$0.01";   /* inserted as HTML - must be an entity */
+    return "$" + n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  var meta     = DATA.meta || {};
+  var scores   = DATA.scores || {};
+  var findings = arr(DATA.findings).slice().sort(function (a, b) {
+    var d = (SEV_RANK[a.severity] === undefined ? 9 : SEV_RANK[a.severity]) -
+            (SEV_RANK[b.severity] === undefined ? 9 : SEV_RANK[b.severity]);
+    return d !== 0 ? d : String(a.id).localeCompare(String(b.id), undefined, { numeric: true });
+  });
+  var hasProjected = !!(scores.projected && has(scores.projected.score));
+
+  var out = [];
+
+  /* ---------------------------------------------------------------- header */
+  var variant = has(meta.variantLabel) ? meta.variantLabel
+              : (has(meta.variant) && meta.variant !== "standalone" ? meta.variant : null);
+  var title = (meta.projectName || "Untitled project")
+            + (variant ? " (" + variant + ")" : "")
+            + " - Security analysis report";
+  document.title = title;
+
+  out.push(
+    '<header class="masthead"><div class="wrap">' +
+      '<button class="theme-toggle no-print" id="themeBtn" type="button">Theme</button>' +
+      '<h1>' + esc(title) + '</h1>' +
+      '<p class="sub">' + (arr(meta.standards).map(esc).join(" &middot; ") || "Static application security review") + '</p>' +
+      '<dl class="meta-grid">' +
+        (variant ? kv("Codebase", esc(variant)) : "") +
+        kv("Target path", meta.targetPath) +
+        kv("Date", meta.scanDate) +
+        kv("Analyst", meta.analyst) +
+        kv("Depth", meta.depth) +
+        kv("Stack", [arr(meta.stack && meta.stack.languages).join(", "),
+                     arr(meta.stack && meta.stack.frameworks).join(", ")].filter(Boolean).join(" / ")) +
+        kv("Scope", meta.inventory
+            ? num(meta.inventory.filesScanned) + " files scanned"
+              + (has(meta.inventory.linesScanned) ? ", " + num(meta.inventory.linesScanned) + " lines" : "")
+              + (has(meta.inventory.filesSkipped) ? " (" + num(meta.inventory.filesSkipped) + " skipped)" : "")
+            : null) +
+        (meta.migration && meta.migration.isMigration
+          ? kv("Migration", esc(meta.migration.sourceLanguage || "?") + " &rarr; " + esc(meta.migration.targetLanguage || "?"))
+          : "") +
+      '</dl>' +
+    '</div></header>'
+  );
+
+  function kv(k, v) {
+    if (!has(v)) return "";
+    return "<div><dt>" + esc(k) + "</dt><dd>" + v + "</dd></div>";
+  }
+
+  out.push('<div class="wrap">');
+
+  /* ---------------------------------------------------------------- 1. scores */
+  out.push('<section id="dashboard"><h2>Score dashboard</h2><div class="score-row">');
+  out.push(scoreTile("Current", scores.current));
+  if (hasProjected) {
+    out.push(scoreTile("Projected after remediation", scores.projected));
+    var up = (scores.projected.score || 0) - ((scores.current && scores.current.score) || 0);
+    out.push(
+      '<div class="tile"><div class="label">Uplift</div>' +
+      '<div class="hero"><span class="uplift">' + (up >= 0 ? "+" : "") + up + '</span></div>' +
+      '<div class="foot">points, if the full plan is applied and verified</div></div>'
+    );
+  }
+  out.push('</div>');
+
+  var counts = {};
+  SEVS.forEach(function (s) { counts[s] = 0; });
+  findings.forEach(function (f) { if (counts[f.severity] !== undefined) counts[f.severity]++; });
+  out.push('<div class="sev-row">');
+  SEVS.forEach(function (s) {
+    out.push(
+      '<div class="sev-tile" data-sev="' + s + '">' +
+        '<div class="n">' + counts[s] + '</div>' +
+        '<div class="k">' + sevIcon(s) + esc(s) + '</div>' +
+      '</div>'
+    );
+  });
+  out.push('</div></section>');
+
+  function scoreTile(label, s) {
+    if (!s) return "";
+    return '<div class="tile">' +
+      '<div class="label">' + esc(label) + '</div>' +
+      '<div class="hero">' + esc(String(s.score)) + '<span class="of"> / 100</span></div>' +
+      '<div class="foot">' +
+        (has(s.grade) ? '<span class="grade">' + esc(s.grade) + '</span>' : '') +
+        (has(s.posture) ? '<span class="posture" data-band="' + esc(s.posture) + '"><span class="dot"></span>' + esc(s.posture) + '</span>' : '') +
+      '</div></div>';
+  }
+  /* Status colour never carries meaning alone - every severity ships an icon + label. */
+  function sevIcon(s) {
+    var g = { Critical: "&#9679;", High: "&#9650;", Medium: "&#9632;", Low: "&#9670;", Info: "&#9675;" };
+    return '<span aria-hidden="true" style="color:' + sevVar(s) + '">' + (g[s] || "&#9675;") + '</span>';
+  }
+  function sevVar(s) {
+    return { Critical: "var(--st-critical)", High: "var(--st-serious)", Medium: "var(--st-warning)",
+             Low: "var(--series-1)", Info: "var(--text-muted)" }[s] || "var(--text-muted)";
+  }
+
+  /* ---------------------------------------------------------------- 2. categories */
+  var cats = arr(scores.categories);
+  if (cats.length) {
+    out.push('<section id="categories"><h2>Category breakdown</h2><div class="card">');
+    out.push(
+      '<div class="legend">' +
+        '<span class="key"><span class="swatch" style="background:var(--series-1)"></span>Current</span>' +
+        (hasProjected ? '<span class="key"><span class="swatch" style="background:var(--series-2)"></span>Projected</span>' : '') +
+        '<span class="key" style="color:var(--text-muted)">Scored 0-100 within each category; weight sets its share of the overall score.</span>' +
+      '</div>'
+    );
+    out.push('<div class="bars">');
+    cats.forEach(function (c) {
+      var assessed = c.assessed !== false && has(c.current);
+      out.push(
+        '<div class="bar-row' + (assessed ? '' : ' na') + '">' +
+          '<div class="cat">' + esc(c.name || c.key) +
+            '<span class="wt">' + esc(c.owasp || "") + (has(c.weight) ? " &middot; weight " + c.weight : "") + '</span>' +
+          '</div>' +
+          '<div class="bar-stack">' +
+            (assessed
+              ? bar("s1", c.current, "Current " + c.current + "/100") +
+                (hasProjected && has(c.projected) ? bar("s2", c.projected, "Projected " + c.projected + "/100") : "")
+              : '<div class="bar-track"></div><div class="bar-na">Not assessed</div>') +
+          '</div>' +
+        '</div>'
+      );
+    });
+    out.push('</div>');
+
+    /* Table view - required relief for sub-3:1 marks, and the print-friendly form. */
+    out.push('<div class="table-scroll" style="margin-top:22px"><table><thead><tr>' +
+      '<th>Category</th><th>OWASP</th><th class="num">Weight</th><th class="num">Current</th>' +
+      (hasProjected ? '<th class="num">Projected</th>' : '') + '<th>Note</th></tr></thead><tbody>');
+    cats.forEach(function (c) {
+      out.push('<tr><td>' + esc(c.name || c.key) + '</td><td>' + esc(c.owasp || "") + '</td>' +
+        '<td class="num">' + (has(c.weight) ? c.weight : "-") + '</td>' +
+        '<td class="num">' + (has(c.current) ? c.current : "n/a") + '</td>' +
+        (hasProjected ? '<td class="num">' + (has(c.projected) ? c.projected : "n/a") + '</td>' : '') +
+        '<td>' + esc(c.note || "") + '</td></tr>');
+    });
+    out.push('</tbody></table></div>');
+    if (has(scores.profile)) {
+      out.push('<p style="margin:14px 0 0;font-size:12.5px;color:var(--text-muted)">Weighting profile: <code>' +
+        esc(scores.profile) + '</code>. Categories marked <em>not assessed</em> are excluded from the weighted average and their weight is redistributed.</p>');
+    }
+    out.push('</div></section>');
+  }
+
+  /* Value sits in its own column, so a 95-wide bar cannot push its label off the row. */
+  function bar(cls, v, tip) {
+    var w = Math.max(0, Math.min(100, Number(v) || 0));
+    return '<div class="bar-line" title="' + esc(tip) + '">' +
+             '<div class="bar-track">' +
+               '<div class="bar-fill ' + cls + '" style="width:' + w + '%"></div>' +
+             '</div>' +
+             '<div class="bar-val">' + esc(String(v)) + '</div>' +
+           '</div>';
+  }
+
+  /* ---------------------------------------------------------------- 3. strengths */
+  var strengths = arr(DATA.strengths);
+  if (strengths.length) {
+    out.push('<section id="strengths"><h2>Controls verified present</h2><div class="card"><ul class="plain">');
+    strengths.forEach(function (s) {
+      out.push('<li><strong>' + esc(s.title) + '</strong>' + (has(s.detail) ? " &mdash; " + esc(s.detail) : "") + '</li>');
+    });
+    out.push('</ul><p style="margin:12px 0 0;font-size:12.5px;color:var(--text-muted)">' +
+      'These are what the category scores are built on, and what remediation must not regress.</p></div></section>');
+  }
+
+  /* ---------------------------------------------------------------- 4. findings table */
+  out.push('<section id="summary"><h2>Findings summary</h2>');
+  if (!findings.length) {
+    out.push('<div class="card"><p class="empty">No findings were recorded for this run. Check the Limitations section for what was and was not assessed.</p></div>');
+  } else {
+    out.push('<div class="card"><div class="table-scroll"><table><thead><tr>' +
+      '<th class="id">#</th><th>Finding</th><th>Severity</th><th>Conf.</th><th>OWASP</th><th>Location</th>' +
+      '<th class="ctr">Found</th><th class="ctr">Fixed</th></tr></thead><tbody>');
+    findings.forEach(function (f) {
+      var loc = arr(f.locations)[0];
+      var more = arr(f.locations).length - 1;
+      out.push('<tr>' +
+        '<td class="id"><a href="#' + esc(f.id) + '" style="font-family:var(--mono);font-size:12px">' + esc(f.id) + '</a></td>' +
+        '<td>' + esc(f.title) + '</td>' +
+        '<td><span class="sev-pill" data-sev="' + esc(f.severity) + '">' + sevIcon(f.severity) + esc(f.severity) + '</span></td>' +
+        '<td><span class="conf" data-c="' + esc(f.confidence) + '">' + esc(f.confidence || "-") + '</span></td>' +
+        '<td>' + esc((f.owasp || "").split(" ")[0]) + '</td>' +
+        '<td style="font-family:var(--mono);font-size:11.5px">' +
+          (loc ? esc(loc.file) + (has(loc.line) ? ":" + loc.line : "") : "-") +
+          (more > 0 ? ' <span style="color:var(--text-muted)">+' + more + '</span>' : '') + '</td>' +
+        '<td class="ctr">' + (f.discovered === false ? "" : "&#10003;") + '</td>' +
+        '<td class="ctr"><input class="chk" type="checkbox" data-fid="' + esc(f.id) + '"' + (f.remediated ? " checked" : "") + ' aria-label="Mark ' + esc(f.id) + ' remediated"></td>' +
+      '</tr>');
+    });
+    out.push('</tbody></table></div>' +
+      '<p style="margin:12px 0 0;font-size:12.5px;color:var(--text-muted)">' +
+      'The <strong>Fixed</strong> column is a working checklist &mdash; tick items as they land. ' +
+      'Your ticks are stored in this browser only; re-run the audit to produce a verified post-remediation score.</p></div>');
+  }
+  out.push('</section>');
+
+  /* ---------------------------------------------------------------- 5. detail */
+  if (findings.length) {
+    out.push('<section id="detail"><h2>Detailed findings</h2>');
+    out.push(
+      '<div class="toolbar no-print">' +
+        '<input type="search" id="q" placeholder="Search findings, files, CWE...">' +
+        SEVS.map(function (s) { return '<button class="chip" type="button" data-sev="' + s + '" aria-pressed="false">' + s + '</button>'; }).join("") +
+        '<button class="btn" id="expandAll" type="button">Expand all</button>' +
+        '<button class="btn" id="copyList" type="button">Copy checklist</button>' +
+        '<span class="count-note" id="countNote"></span>' +
+      '</div>'
+    );
+    out.push('<div id="findingList">');
+    findings.forEach(function (f) { out.push(findingCard(f)); });
+    out.push('</div></section>');
+  }
+
+  function findingCard(f) {
+    var r = f.remediation || {};
+    var s = [];
+    s.push('<details class="finding' + (f.remediated ? " done" : "") + '" id="' + esc(f.id) + '" data-sev="' + esc(f.severity) + '"' +
+           ' data-blob="' + esc([f.id, f.title, f.evidence, f.risk, arr(f.cwe).join(" "),
+                                 arr(f.locations).map(function (l) { return l.file; }).join(" "),
+                                 f.owasp, f.category].filter(Boolean).join(" ").toLowerCase()) + '">');
+    s.push('<summary>' +
+      '<span class="fid">' + esc(f.id) + '</span>' +
+      '<span class="sev-pill" data-sev="' + esc(f.severity) + '">' + sevIcon(f.severity) + esc(f.severity) + '</span>' +
+      '<span><span class="ftitle">' + esc(f.title) + '</span>' +
+        '<span class="fmeta">' + esc(f.owasp || "") +
+          (has(f.confidence) ? " &middot; " + esc(f.confidence) : "") +
+          (has(f.origin) ? " &middot; " + esc(f.origin) : "") +
+          (has(f.exposure) ? " &middot; " + esc(f.exposure) : "") +
+        '</span></span>' +
+      '<span class="chev">&#9654;</span>' +
+      '</summary>');
+
+    s.push('<div class="fbody">');
+
+    /* identifiers */
+    var tags = [];
+    arr(f.cwe).forEach(function (c) { tags.push('<span class="tag">' + esc(c) + '</span>'); });
+    arr(f.attack).forEach(function (a) { tags.push('<span class="tag">ATT&amp;CK ' + esc(a.id) + (has(a.name) ? " " + esc(a.name) : "") + '</span>'); });
+    if (f.nist) {
+      arr(f.nist.ssdf).forEach(function (n) { tags.push('<span class="tag">SSDF ' + esc(n) + '</span>'); });
+      arr(f.nist.sp80053).forEach(function (n) { tags.push('<span class="tag">800-53 ' + esc(n) + '</span>'); });
+    }
+    if (has(f.owaspCurrent)) tags.push('<span class="tag">' + esc(f.owaspCurrent) + '</span>');
+    if (tags.length) s.push('<div class="fblock"><div class="h">Standards</div>' + tags.join("") + '</div>');
+
+    if (has(f.risk))     s.push('<div class="fblock"><div class="h">Risk</div><p style="margin:0">' + esc(f.risk) + '</p></div>');
+    if (has(f.evidence)) s.push('<div class="fblock"><div class="h">Evidence</div><p style="margin:0">' + esc(f.evidence) + '</p></div>');
+
+    var locs = arr(f.locations);
+    if (locs.length) {
+      s.push('<div class="fblock"><div class="h">Location' + (locs.length > 1 ? "s (" + locs.length + ")" : "") + '</div>');
+      locs.forEach(function (l) {
+        s.push('<div class="loc"><span class="path">' + esc(l.file) + '</span>' +
+               (has(l.line) ? '<span style="color:var(--text-muted)">:' + esc(l.line) + '</span>' : '') +
+               (has(l.excerpt) ? '<span class="code">' + esc(l.excerpt) + '</span>' : '') + '</div>');
+      });
+      s.push('</div>');
+    }
+
+    if (f.impact) {
+      s.push('<div class="fblock"><div class="h">Impact</div><div class="kv">' +
+        ["confidentiality", "integrity", "availability"].map(function (k) {
+          return has(f.impact[k]) ? '<div><div class="k">' + k + '</div>' + esc(f.impact[k]) + '</div>' : "";
+        }).join("") + '</div></div>');
+    }
+
+    /* remediation */
+    if (r && (has(r.summary) || arr(r.steps).length)) {
+      s.push('<div class="fblock"><div class="h">Remediation' +
+        (r.breakingChange ? ' <span class="badge-br">Breaking change</span>'
+                          : (r.nonBreaking ? ' <span class="badge-nb">Non-breaking</span>' : '')) +
+        (has(r.effort) ? ' <span class="tag">Effort ' + esc(r.effort) + '</span>' : '') +
+        '</div>');
+      if (r.breakingChange) {
+        s.push('<div class="warnbox" style="margin-bottom:10px"><strong>This fix changes behaviour.</strong> ' +
+               'Schedule it deliberately &mdash; it is not a drop-in change.</div>');
+      }
+      if (has(r.summary)) s.push('<p style="margin:0 0 10px">' + esc(r.summary) + '</p>');
+      if (arr(r.steps).length) {
+        s.push('<ol class="steps">' + arr(r.steps).map(function (x) { return "<li>" + esc(x) + "</li>"; }).join("") + '</ol>');
+      }
+      if (has(r.codeBefore) || has(r.codeAfter)) {
+        s.push('<div class="diff" style="margin-top:12px">' +
+          (has(r.codeBefore) ? '<div class="before"><div class="lbl">Before</div><pre class="code">' + esc(r.codeBefore) + '</pre></div>' : '') +
+          (has(r.codeAfter)  ? '<div class="after"><div class="lbl">After</div><pre class="code">'  + esc(r.codeAfter)  + '</pre></div>' : '') +
+        '</div>');
+      }
+      s.push('</div>');
+    }
+
+    if (has(f.verification)) {
+      s.push('<div class="fblock"><div class="h">Verification</div><div class="verify">' + esc(f.verification) + '</div></div>');
+    }
+
+    var refs = arr(f.references);
+    if (refs.length) {
+      s.push('<div class="fblock"><div class="h">References</div><ul class="plain">' +
+        refs.map(function (x) {
+          return "<li>" + (has(x.url) ? '<a href="' + esc(x.url) + '" rel="noreferrer noopener">' + esc(x.label || x.url) + "</a>"
+                                      : esc(x.label || "")) + "</li>";
+        }).join("") + '</ul></div>');
+    }
+
+    s.push('</div></details>');
+    return s.join("");
+  }
+
+  /* ---------------------------------------------------------------- 6. roadmap */
+  var roadmap = arr(DATA.roadmap);
+  if (roadmap.length) {
+    out.push('<section id="roadmap"><h2>Remediation roadmap</h2><div class="card">');
+    roadmap.forEach(function (p) {
+      out.push('<div class="phase">' +
+        '<div class="pnum">' + esc(p.phase) + '</div>' +
+        '<div><h3 style="font-size:15px;margin:0 0 4px">' + esc(p.name) + '</h3>' +
+          '<div style="font-size:12.5px;color:var(--text-muted)">' +
+            arr(p.findings).map(function (id) { return '<a href="#' + esc(id) + '" class="tag">' + esc(id) + '</a>'; }).join("") +
+            (has(p.effort) ? ' <span class="tag">Effort ' + esc(p.effort) + '</span>' : '') +
+          '</div>' +
+          (has(p.rationale) ? '<p style="margin:8px 0 0;font-size:13.5px">' + esc(p.rationale) + '</p>' : '') +
+        '</div>' +
+        (has(p.scoreAfter) ? '<div class="pafter">&rarr; ' + esc(p.scoreAfter) + ' / 100</div>' : '<div></div>') +
+      '</div>');
+    });
+    out.push('</div></section>');
+  }
+
+  /* ---------------------------------------------------------------- 7. cost */
+  var cost = DATA.cost;
+  if (cost) {
+    out.push('<section id="cost"><h2>Analysis cost</h2><div class="card">');
+    if (cost.source === "estimate") {
+      out.push('<div class="cost-caveat"><strong>Estimated, not measured.</strong> ' +
+        'Usage records were unavailable for this run, so the figures below are an approximation and should not be used for billing reconciliation.</div>');
+    } else if (cost.source === "unavailable") {
+      out.push('<p class="empty">Cost was not collected for this run.</p>');
+    }
+
+    if (cost.source !== "unavailable" && arr(cost.byModel).length) {
+      out.push('<div class="table-scroll"><table><thead><tr>' +
+        '<th>Model</th><th class="num">Msgs</th><th class="num">Input</th><th class="num">Cache write</th>' +
+        '<th class="num">Cache read</th><th class="num">Output</th><th class="num">Total tokens</th><th class="num">Cost</th>' +
+        '</tr></thead><tbody>');
+      arr(cost.byModel).forEach(function (m) {
+        var t = m.tokens || {};
+        var cw = (t.cacheWrite5m || 0) + (t.cacheWrite1h || 0);
+        out.push('<tr>' +
+          '<td style="font-family:var(--mono);font-size:12px">' + esc(m.model) +
+            (m.priced === false ? ' <span class="tag">unpriced</span>' : '') + '</td>' +
+          '<td class="num">' + num(m.messages) + '</td>' +
+          '<td class="num">' + num(t.input) + '</td>' +
+          '<td class="num">' + num(cw) + '</td>' +
+          '<td class="num">' + num(t.cacheRead) + '</td>' +
+          '<td class="num">' + num(t.output) + '</td>' +
+          '<td class="num">' + num(t.total) + '</td>' +
+          '<td class="num">' + (m.costUSD ? money(m.costUSD.total) : "-") + '</td>' +
+        '</tr>');
+      });
+      out.push('</tbody></table></div>');
+
+      var tot = cost.totals || {};
+      out.push('<div class="cost-total">' +
+        '<div><div class="label" style="font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted)">Total tokens</div>' +
+          '<div class="big">' + num(tot.totalTokens) + '</div></div>' +
+        '<div><div class="label" style="font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted)">Estimated cost</div>' +
+          '<div class="big">' + money(tot.totalCostUSD) + '</div></div>' +
+        (has(cost.startedAt) && has(cost.finishedAt)
+          ? '<div><div class="label" style="font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted)">Window</div>' +
+            '<div style="font-size:13px;color:var(--text-secondary);padding-top:8px">' + esc(cost.startedAt) + ' &rarr; ' + esc(cost.finishedAt) + '</div></div>'
+          : '') +
+      '</div>');
+
+      out.push('<p style="margin:14px 0 0;font-size:12.5px;color:var(--text-muted)">' +
+        (has(cost.note) ? esc(cost.note) + " " : "") +
+        (cost.unpricedModels ? '<strong>' + cost.unpricedModels + ' model(s) had no published rate and are excluded from the dollar total.</strong> ' : '') +
+        'Cache reads are billed well below input rate, which is why total tokens and total cost do not move together.' +
+        '</p>');
+    }
+    out.push('</div></section>');
+  }
+
+  /* ---------------------------------------------------------------- 8. evidence */
+  var ev = arr(DATA.evidenceLog);
+  if (ev.length) {
+    out.push('<section id="evidence"><h2>Scan evidence</h2><div class="card">' +
+      '<p style="font-size:13px;color:var(--text-secondary);margin-top:0">' +
+      'What was checked, so that "no finding" can be told apart from "not checked".</p>' +
+      '<div class="table-scroll"><table><thead><tr><th>Check</th><th>Rule</th><th>Query</th><th>Result</th><th>Conclusion</th></tr></thead><tbody>');
+    ev.forEach(function (e) {
+      out.push('<tr><td>' + esc(e.check) + '</td>' +
+        '<td style="font-family:var(--mono);font-size:11.5px">' + esc(e.ruleId || "") + '</td>' +
+        '<td style="font-family:var(--mono);font-size:11.5px">' + esc(e.query || "") + '</td>' +
+        '<td>' + esc(e.result || "") + '</td><td>' + esc(e.conclusion || "") + '</td></tr>');
+    });
+    out.push('</tbody></table></div></div></section>');
+  }
+
+  /* ---------------------------------------------------------------- 9. limitations */
+  var lim = arr(DATA.limitations);
+  if (lim.length) {
+    out.push('<section id="limitations"><h2>Limitations &amp; scope</h2><div class="card"><ul class="plain">' +
+      lim.map(function (l) { return "<li>" + esc(l) + "</li>"; }).join("") +
+      '</ul></div></section>');
+  }
+
+  out.push('<footer class="foot">' +
+    esc(title) + (has(meta.scanDate) ? " &middot; " + esc(meta.scanDate) : "") +
+    ' &middot; Generated by the <code>security-audit</code> skill. ' +
+    'Static analysis findings require human confirmation before they are treated as accepted risk or closed.' +
+    '</footer>');
+
+  out.push('</div>');
+  document.getElementById("root").innerHTML = out.join("");
+
+  /* ---------------------------------------------------------------- behaviour */
+  var store = {
+    get: function (k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+    set: function (k, v) { try { localStorage.setItem(k, v); } catch (e) { /* file:// or blocked - fine */ } }
+  };
+
+  /* theme toggle - wins over the OS setting in both directions */
+  var btn = document.getElementById("themeBtn");
+  var saved = store.get("sa-theme");
+  if (saved) document.documentElement.setAttribute("data-theme", saved);
+  if (btn) btn.addEventListener("click", function () {
+    var cur = document.documentElement.getAttribute("data-theme");
+    if (!cur) cur = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    var next = cur === "dark" ? "light" : "dark";
+    document.documentElement.setAttribute("data-theme", next);
+    store.set("sa-theme", next);
+  });
+
+  /* remediated checkboxes */
+  var key = "sa-fixed:" + (meta.projectName || "") + ":" + (meta.scanDate || "");
+  var fixed = {};
+  try { fixed = JSON.parse(store.get(key) || "{}"); } catch (e) { fixed = {}; }
+  document.querySelectorAll(".chk").forEach(function (cb) {
+    var id = cb.getAttribute("data-fid");
+    if (fixed[id]) cb.checked = true;
+    applyFixed(id, cb.checked);
+    cb.addEventListener("change", function () {
+      fixed[id] = cb.checked;
+      store.set(key, JSON.stringify(fixed));
+      applyFixed(id, cb.checked);
+    });
+  });
+  function applyFixed(id, on) {
+    var card = document.getElementById(id);
+    if (card) card.classList.toggle("done", !!on);
+  }
+
+  /* filters */
+  var q = document.getElementById("q");
+  var chips = Array.prototype.slice.call(document.querySelectorAll(".chip[data-sev]"));
+  var cards = Array.prototype.slice.call(document.querySelectorAll(".finding"));
+  var note = document.getElementById("countNote");
+
+  function applyFilter() {
+    var term = (q && q.value || "").trim().toLowerCase();
+    var on = chips.filter(function (c) { return c.getAttribute("aria-pressed") === "true"; })
+                  .map(function (c) { return c.getAttribute("data-sev"); });
+    var shown = 0;
+    cards.forEach(function (card) {
+      var okSev = !on.length || on.indexOf(card.getAttribute("data-sev")) !== -1;
+      var okTxt = !term || (card.getAttribute("data-blob") || "").indexOf(term) !== -1;
+      var vis = okSev && okTxt;
+      card.hidden = !vis;
+      if (vis) shown++;
+    });
+    if (note) note.textContent = shown + " of " + cards.length + " shown";
+  }
+  chips.forEach(function (c) {
+    c.addEventListener("click", function () {
+      c.setAttribute("aria-pressed", c.getAttribute("aria-pressed") === "true" ? "false" : "true");
+      applyFilter();
+    });
+  });
+  if (q) q.addEventListener("input", applyFilter);
+  applyFilter();
+
+  var exp = document.getElementById("expandAll");
+  if (exp) exp.addEventListener("click", function () {
+    var anyClosed = cards.some(function (c) { return !c.open && !c.hidden; });
+    cards.forEach(function (c) { if (!c.hidden) c.open = anyClosed; });
+    exp.textContent = anyClosed ? "Collapse all" : "Expand all";
+  });
+
+  /* copy checklist as markdown */
+  var copy = document.getElementById("copyList");
+  if (copy) copy.addEventListener("click", function () {
+    var lines = ["# " + title, ""];
+    findings.forEach(function (f) {
+      var cb = document.querySelector('.chk[data-fid="' + f.id + '"]');
+      var done = cb && cb.checked;
+      var loc = arr(f.locations)[0];
+      lines.push("- [" + (done ? "x" : " ") + "] **" + f.id + "** (" + f.severity + ", " + (f.owasp || "") + ") " +
+                 f.title + (loc ? "  \n      " + loc.file + (has(loc.line) ? ":" + loc.line : "") : ""));
+    });
+    var text = lines.join("\n");
+    function fallback() {
+      var ta = document.createElement("textarea");
+      ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta); ta.select();
+      try { document.execCommand("copy"); } catch (e) {}
+      document.body.removeChild(ta);
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, function () { fallback(); done(); });
+    } else { fallback(); done(); }
+    function done() {
+      copy.textContent = "Copied";
+      setTimeout(function () { copy.textContent = "Copy checklist"; }, 1600);
+    }
+  });
+
+  /* expand a finding when linked to directly */
+  window.addEventListener("hashchange", openHash);
+  openHash();
+  function openHash() {
+    var h = location.hash.slice(1);
+    if (!h) return;
+    var t = document.getElementById(h);
+    if (t && t.tagName === "DETAILS") { t.hidden = false; t.open = true; t.scrollIntoView({ block: "start" }); }
+  }
+
+  /* print: expand everything so nothing is hidden in the PDF */
+  window.addEventListener("beforeprint", function () {
+    cards.forEach(function (c) { c.open = true; });
+  });
+})();
+</script>
+</body>
+</html>

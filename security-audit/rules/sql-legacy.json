@@ -1,0 +1,125 @@
+{
+  "pack": "sql-legacy",
+  "appliesTo": ["sql", "plsql", "tsql", "cobol", "informix4gl", "vb6", "delphi", "rpg"],
+  "modernizationNote": [
+    "This pack matters on BOTH sides of a migration.",
+    "Run it on the LEGACY source to establish what weaknesses the system already had, and on the",
+    "GENERATED target to check whether they were carried across. A migration that faithfully",
+    "reproduces a SQL injection is a faithful migration and an insecure application.",
+    "Findings originating in legacy source should carry origin: 'legacy-inherited' so the report can",
+    "distinguish pre-existing debt from defects introduced by the modernization itself."
+  ],
+  "rules": [
+    {
+      "id": "SQL-INJ-01",
+      "title": "Dynamic SQL executed from a constructed string",
+      "pattern": "(?i)(EXECUTE IMMEDIATE|EXEC\\s*\\(|sp_executesql|DBMS_SQL\\.PARSE|PREPARE\\s+\\w+\\s+FROM)",
+      "glob": "**/*.{sql,pks,pkb,prc,fnc,tsql}",
+      "severity": "High",
+      "owasp": "A03:2021",
+      "cwe": ["CWE-89"],
+      "attack": ["T1190"],
+      "why": "Dynamic SQL assembled from parameters inside a stored procedure is injectable, and it runs with the procedure's privileges.",
+      "falsePositiveHints": "sp_executesql with declared @params is parameterized and safe. EXECUTE IMMEDIATE with USING bind variables is safe. The finding is concatenation into the statement text."
+    },
+    {
+      "id": "SQL-PRV-01",
+      "title": "Broad privilege grant",
+      "pattern": "(?i)GRANT\\s+(ALL|DBA|SYSDBA|CONTROL|ALTER ANY|EXECUTE ANY|SELECT ANY)|TO\\s+PUBLIC|WITH GRANT OPTION|EXECUTE AS\\s+(OWNER|'dbo')",
+      "glob": "**/*.sql",
+      "severity": "High",
+      "owasp": "A01:2021",
+      "cwe": ["CWE-250", "CWE-732"],
+      "why": "GRANT ALL and TO PUBLIC discard least privilege; a single application-level flaw then reaches the whole database.",
+      "falsePositiveHints": "Setup scripts for a local development database are lower severity. Confirm whether the script is applied to production."
+    },
+    {
+      "id": "SQL-SEC-01",
+      "title": "Credential embedded in a SQL or DDL script",
+      "pattern": "(?i)(IDENTIFIED BY\\s+[\"']?\\w+|CREATE (LOGIN|USER)[^\\n]{0,80}PASSWORD\\s*=|WITH PASSWORD\\s*=\\s*[\"'])",
+      "glob": "**/*.sql",
+      "severity": "Critical",
+      "owasp": "A02:2021",
+      "cwe": ["CWE-798"],
+      "why": "Database account passwords in versioned scripts are readable by everyone with repository access and by CI logs.",
+      "falsePositiveHints": "Templated placeholders are fine. A literal password is a finding and requires rotation."
+    },
+    {
+      "id": "SQL-CRY-01",
+      "title": "Sensitive column stored without protection",
+      "pattern": "(?i)(password|passwd|pwd|ssn|social_security|credit_card|card_no|cardnumber|cvv|account_no|tax_id|nif|rfc|curp)\\s+(VARCHAR|CHAR|NVARCHAR|TEXT|VARCHAR2)",
+      "glob": "**/*.sql",
+      "severity": "High",
+      "owasp": "A02:2021",
+      "cwe": ["CWE-311", "CWE-256"],
+      "why": "Sensitive identifiers and secrets in plaintext columns are exposed by any read access, any backup, and any dump.",
+      "falsePositiveHints": "A password column holding a bcrypt/argon2 digest is correct - check the length and how the application writes it. PII columns may be covered by transparent database encryption; verify rather than assume."
+    },
+    {
+      "id": "LEG-INJ-01",
+      "title": "Legacy dynamic SQL built by string construction",
+      "pattern": "(?i)(PREPARE\\s+\\w+\\s+FROM|EXECUTE\\s+\\w+\\s+USING|STRING\\s+[^\\n]{0,60}(SELECT|INSERT|UPDATE|DELETE)|LET\\s+\\w+\\s*=\\s*[\"'][^\"']*(SELECT|INSERT|UPDATE|DELETE))",
+      "glob": "**/*.{4gl,per,cbl,cob,rpg,rpgle}",
+      "severity": "High",
+      "owasp": "A03:2021",
+      "cwe": ["CWE-89"],
+      "why": "4GL/COBOL programs frequently build SQL text into a working variable and PREPARE it. If any part comes from a screen field, it is injectable - and the modernized code usually inherits the pattern.",
+      "falsePositiveHints": "Statements assembled purely from literals and program constants are safe. Trace whether an input field (screen, ARG_VAL, ACCEPT) reaches the string."
+    },
+    {
+      "id": "LEG-SEC-02",
+      "title": "Credential or connection detail in legacy source",
+      "pattern": "(?i)(DATABASE\\s+\\w+@\\w+|CONNECT TO[^\\n]{0,60}USER|MOVE\\s+[\"'][^\"']{4,}[\"']\\s+TO\\s+[A-Z-]*PASS|LET\\s+\\w*pass\\w*\\s*=\\s*[\"'])",
+      "glob": "**/*.{4gl,per,cbl,cob,vbp,bas,dpr,pas}",
+      "severity": "High",
+      "owasp": "A02:2021",
+      "cwe": ["CWE-798"],
+      "why": "Legacy programs commonly hold database and user credentials inline. These are carried into modernized configuration unless deliberately extracted to a secret store.",
+      "falsePositiveHints": "Database name without credentials is Info. Confirm an actual secret value is present."
+    },
+    {
+      "id": "LEG-AUTH-01",
+      "title": "Home-grown authentication or password comparison in legacy code",
+      "pattern": "(?i)(IF\\s+\\w*PASS\\w*\\s*=\\s*|COMPARE[^\\n]{0,40}PASS|MOVE[^\\n]{0,40}PASSWORD|VALIDATE[-_ ]?USER|CHECK[-_ ]?LOGIN|LOGON[-_ ]?CHECK)",
+      "glob": "**/*.{4gl,per,cbl,cob,vbp,bas,dpr,pas,rpgle}",
+      "severity": "High",
+      "owasp": "A07:2021",
+      "cwe": ["CWE-259", "CWE-916", "CWE-287"],
+      "why": "Legacy authentication typically compares plaintext passwords with no hashing, salting, lockout or timing safety. Migrating this logic verbatim reproduces every weakness in the new stack.",
+      "falsePositiveHints": "This is the single most important legacy pattern to catch during a modernization. Do not port it - the remediation is to replace it with the target platform's identity provider, not to translate it."
+    },
+    {
+      "id": "LEG-FIL-01",
+      "title": "Filesystem or OS call from legacy code",
+      "pattern": "(?i)(RUN\\s+[\"']|CALL\\s+[\"']SYSTEM|SYSTEM\\s*\\(|Shell\\s*\\(|WinExec|CreateProcess|OPEN\\s+INPUT\\s+\\w+|ASSIGN TO)",
+      "glob": "**/*.{4gl,per,cbl,cob,vbp,bas,dpr,pas}",
+      "severity": "Medium",
+      "owasp": "A03:2021",
+      "cwe": ["CWE-78", "CWE-22"],
+      "why": "RUN/SYSTEM/Shell with a constructed argument is command injection; file paths built from input are traversal.",
+      "falsePositiveHints": "Fixed literal paths and commands are Info. The finding is a variable reaching the argument."
+    },
+    {
+      "id": "LEG-VAL-01",
+      "title": "Screen or terminal input consumed without validation",
+      "pattern": "(?i)(INPUT\\s+BY NAME|CONSTRUCT\\s+BY NAME|ACCEPT\\s+\\w+\\s+FROM|PROMPT\\s+FOR|DISPLAY FORM|INPUT ARRAY)",
+      "glob": "**/*.{4gl,per,cbl,cob}",
+      "severity": "Medium",
+      "owasp": "A04:2021",
+      "cwe": ["CWE-20"],
+      "why": "Legacy screen input relied on the terminal form for constraints. Once the logic is exposed over HTTP by a modernization, that implicit boundary is gone and the constraint must become explicit server-side validation.",
+      "falsePositiveHints": "Not a vulnerability in the legacy system itself. It IS a required action item for the modernized target - report it as a migration-risk item, and record the field lengths and types so the target validation can mirror the real schema."
+    },
+    {
+      "id": "LEG-CRY-01",
+      "title": "Home-grown or trivially reversible encryption",
+      "pattern": "(?i)(XOR|ROT13|ENCRYPT[-_ ]?ROUTINE|SCRAMBLE|OBFUSCAT|CHR\\s*\\(\\s*ASC|CIPHER\\s*\\()",
+      "glob": "**/*.{4gl,per,cbl,cob,vbp,bas,dpr,pas,sql}",
+      "severity": "High",
+      "owasp": "A02:2021",
+      "cwe": ["CWE-327", "CWE-1240"],
+      "why": "Hand-rolled obfuscation offers no confidentiality. Data protected this way should be treated as plaintext.",
+      "falsePositiveHints": "XOR used for a checksum or bit manipulation is not encryption. Read the routine's purpose."
+    }
+  ]
+}

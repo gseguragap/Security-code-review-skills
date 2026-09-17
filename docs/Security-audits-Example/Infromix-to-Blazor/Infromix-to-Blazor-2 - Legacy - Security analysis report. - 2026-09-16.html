@@ -1,0 +1,1604 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Security analysis report</title>
+<style>
+/* ============================================================================
+   Security analysis report - self-contained stylesheet.
+   No external fonts, no CDN, no network. Opens from disk in any browser.
+   Palette: dataviz reference instance (categorical slots 1-2 + status roles),
+   used verbatim - the documented, validated default.
+   ========================================================================= */
+
+:root {
+  color-scheme: light;
+
+  --surface-0:      #f4f4f1;   /* page ground   */
+  --surface-1:      #fcfcfb;   /* card / chart  */
+  --surface-2:      #eeeeea;   /* inset, code   */
+  --border:         #dcdcd6;
+  --border-strong:  #c3c2b7;
+
+  --text-primary:   #0b0b0b;
+  --text-secondary: #52514e;
+  --text-muted:     #78776f;
+
+  /* categorical - fixed order, never cycled */
+  --series-1:       #2a78d6;   /* Current   */
+  --series-2:       #eb6834;   /* Projected */
+
+  /* status - reserved roles, always paired with an icon + label */
+  --st-good:        #0ca30c;
+  --st-warning:     #fab219;
+  --st-serious:     #ec835a;
+  --st-critical:    #d03b3b;
+  --st-neutral:     #78776f;
+
+  --grid:           #e6e6e1;
+  --shadow:         0 1px 2px rgba(0,0,0,.05), 0 4px 12px rgba(0,0,0,.04);
+  --radius:         10px;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --surface-0:      #121211;
+    --surface-1:      #1a1a19;
+    --surface-2:      #232322;
+    --border:         #33332f;
+    --border-strong:  #4a4a45;
+    --text-primary:   #ffffff;
+    --text-secondary: #c3c2b7;
+    --text-muted:     #96958c;
+    --series-1:       #3987e5;
+    --series-2:       #d95926;
+    --grid:           #2b2b28;
+    --shadow:         0 1px 2px rgba(0,0,0,.4), 0 4px 12px rgba(0,0,0,.3);
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --surface-0:      #121211;
+  --surface-1:      #1a1a19;
+  --surface-2:      #232322;
+  --border:         #33332f;
+  --border-strong:  #4a4a45;
+  --text-primary:   #ffffff;
+  --text-secondary: #c3c2b7;
+  --text-muted:     #96958c;
+  --series-1:       #3987e5;
+  --series-2:       #d95926;
+  --grid:           #2b2b28;
+  --shadow:         0 1px 2px rgba(0,0,0,.4), 0 4px 12px rgba(0,0,0,.3);
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--surface-0);
+  color: var(--text-primary);
+  font: 15px/1.6 var(--sans);
+  padding: 0 0 5rem;
+}
+img { max-width: 100%; }
+[hidden] { display: none !important; }
+
+.wrap { max-width: 1160px; margin: 0 auto; padding: 0 24px; }
+
+/* ---------------------------------------------------------------- header */
+header.masthead {
+  background: var(--surface-1);
+  border-bottom: 1px solid var(--border);
+  padding: 28px 0 22px;
+  margin-bottom: 28px;
+}
+.masthead h1 { margin: 0 0 6px; font-size: 26px; line-height: 1.25; letter-spacing: -.02em; }
+.masthead .sub { color: var(--text-secondary); font-size: 14px; margin: 0; }
+.meta-grid {
+  display: grid; gap: 10px 28px; margin-top: 18px;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  font-size: 13px;
+}
+.meta-grid dt { color: var(--text-muted); font-size: 11px; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 2px; }
+.meta-grid dd { margin: 0; color: var(--text-primary); word-break: break-word; }
+
+.theme-toggle {
+  position: absolute; top: 20px; right: 24px;
+  background: var(--surface-2); color: var(--text-secondary);
+  border: 1px solid var(--border); border-radius: 999px;
+  padding: 6px 14px; font: inherit; font-size: 12px; cursor: pointer;
+}
+.theme-toggle:hover { border-color: var(--border-strong); color: var(--text-primary); }
+.masthead { position: relative; }
+
+/* ---------------------------------------------------------------- sections */
+section { margin: 0 0 38px; }
+h2 {
+  font-size: 13px; text-transform: uppercase; letter-spacing: .08em;
+  color: var(--text-muted); margin: 0 0 14px; font-weight: 600;
+}
+h3 { font-size: 17px; margin: 0 0 10px; letter-spacing: -.01em; }
+p  { margin: 0 0 12px; }
+
+.card {
+  background: var(--surface-1); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 20px; box-shadow: var(--shadow);
+}
+
+/* ---------------------------------------------------------------- score tiles */
+.score-row { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); }
+.tile {
+  background: var(--surface-1); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 18px 20px; box-shadow: var(--shadow);
+}
+.tile .label { font-size: 11px; text-transform: uppercase; letter-spacing: .07em; color: var(--text-muted); margin-bottom: 6px; }
+.tile .hero { font-size: 40px; line-height: 1; font-weight: 650; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+.tile .hero .of { font-size: 17px; font-weight: 400; color: var(--text-muted); letter-spacing: 0; }
+.tile .foot { margin-top: 8px; font-size: 13px; color: var(--text-secondary); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+.grade {
+  display: inline-block; font-weight: 650; font-size: 13px;
+  padding: 2px 9px; border-radius: 6px;
+  background: var(--surface-2); border: 1px solid var(--border-strong);
+}
+.posture { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 550; }
+.posture .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+.posture[data-band="Hardened"] .dot { background: var(--st-good); }
+.posture[data-band="Adequate"] .dot { background: var(--series-1); }
+.posture[data-band="At Risk"]  .dot { background: var(--st-warning); }
+.posture[data-band="Critical"] .dot { background: var(--st-critical); }
+
+.uplift { color: var(--st-good); font-weight: 650; font-variant-numeric: tabular-nums; }
+
+/* ---------------------------------------------------------------- severity KPI */
+.sev-row { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(112px, 1fr)); margin-top: 16px; }
+.sev-tile {
+  background: var(--surface-1); border: 1px solid var(--border);
+  border-left: 3px solid var(--st-neutral);
+  border-radius: 8px; padding: 12px 14px;
+}
+.sev-tile .n { font-size: 26px; font-weight: 650; line-height: 1; font-variant-numeric: tabular-nums; }
+.sev-tile .k { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-secondary); margin-top: 5px; display: flex; align-items: center; gap: 5px; }
+.sev-tile[data-sev="Critical"] { border-left-color: var(--st-critical); }
+.sev-tile[data-sev="High"]     { border-left-color: var(--st-serious); }
+.sev-tile[data-sev="Medium"]   { border-left-color: var(--st-warning); }
+.sev-tile[data-sev="Low"]      { border-left-color: var(--series-1); }
+.sev-tile[data-sev="Info"]     { border-left-color: var(--st-neutral); }
+
+/* ---------------------------------------------------------------- chart */
+.legend { display: flex; gap: 18px; align-items: center; font-size: 12.5px; color: var(--text-secondary); margin-bottom: 16px; flex-wrap: wrap; }
+.legend .key { display: inline-flex; align-items: center; gap: 7px; }
+.legend .swatch { width: 11px; height: 11px; border-radius: 3px; flex: none; }
+
+.bars { display: grid; gap: 14px; }
+.bar-row { display: grid; grid-template-columns: minmax(140px, 200px) 1fr; gap: 16px; align-items: center; }
+.bar-row .cat { font-size: 13px; color: var(--text-secondary); line-height: 1.3; }
+.bar-row .cat .wt { color: var(--text-muted); font-size: 11px; display: block; }
+.bar-stack { display: grid; gap: 2px; }              /* 2px surface gap between adjacent bars */
+.bar-line  { display: grid; grid-template-columns: 1fr 34px; gap: 8px; align-items: center; }
+.bar-track { position: relative; height: 13px; background: var(--grid); border-radius: 3px; }
+.bar-fill {
+  position: absolute; left: 0; top: 0; bottom: 0;
+  border-radius: 0 4px 4px 0;                        /* 4px rounded data-end, anchored to baseline */
+  min-width: 3px;
+}
+.bar-fill.s1 { background: var(--series-1); }
+.bar-fill.s2 { background: var(--series-2); }
+.bar-val {
+  font-size: 11.5px; font-variant-numeric: tabular-nums; color: var(--text-secondary);
+  text-align: right; white-space: nowrap;
+}
+.bar-row.na .bar-track { background: repeating-linear-gradient(135deg, var(--grid), var(--grid) 4px, transparent 4px, transparent 8px); }
+.bar-na { font-size: 11.5px; color: var(--text-muted); font-style: italic; padding-left: 2px; }
+
+/* ---------------------------------------------------------------- tables */
+table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+th { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--text-muted); font-weight: 600; white-space: nowrap; }
+tbody tr:last-child td { border-bottom: none; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+td.ctr, th.ctr { text-align: center; }
+td.id, th.id   { white-space: nowrap; width: 1%; }
+.table-scroll { overflow-x: auto; }
+
+.sev-pill {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 11.5px; font-weight: 600; padding: 2px 8px; border-radius: 999px;
+  border: 1px solid; white-space: nowrap;
+}
+.sev-pill[data-sev="Critical"] { color: var(--st-critical); border-color: var(--st-critical); }
+.sev-pill[data-sev="High"]     { color: var(--st-serious);  border-color: var(--st-serious); }
+.sev-pill[data-sev="Medium"]   { color: var(--st-warning);  border-color: var(--st-warning); }
+.sev-pill[data-sev="Low"]      { color: var(--series-1);    border-color: var(--series-1); }
+.sev-pill[data-sev="Info"]     { color: var(--text-muted);  border-color: var(--border-strong); }
+:root[data-theme="dark"] .sev-pill[data-sev="Medium"],
+:root:not([data-theme="light"]) .sev-pill[data-sev="Medium"] { color: var(--st-warning); }
+
+.tag {
+  display: inline-block; font-size: 11px; font-family: var(--mono);
+  background: var(--surface-2); border: 1px solid var(--border);
+  color: var(--text-secondary); padding: 1px 6px; border-radius: 4px; margin: 1px 3px 1px 0;
+  white-space: nowrap;
+}
+.conf { font-size: 11.5px; color: var(--text-secondary); }
+.conf[data-c="Possible"] { color: var(--st-warning); font-weight: 600; }
+
+/* ---------------------------------------------------------------- filters */
+.toolbar {
+  display: flex; gap: 10px; flex-wrap: wrap; align-items: center;
+  margin-bottom: 14px; padding: 12px 14px;
+  background: var(--surface-1); border: 1px solid var(--border); border-radius: var(--radius);
+}
+.toolbar input[type="search"], .toolbar select {
+  font: inherit; font-size: 13px; padding: 6px 10px;
+  background: var(--surface-2); color: var(--text-primary);
+  border: 1px solid var(--border); border-radius: 7px;
+}
+.toolbar input[type="search"] { min-width: 210px; flex: 1 1 210px; }
+.chip {
+  font: inherit; font-size: 12px; padding: 5px 11px; cursor: pointer;
+  background: var(--surface-2); color: var(--text-secondary);
+  border: 1px solid var(--border); border-radius: 999px;
+}
+.chip[aria-pressed="true"] { background: var(--text-primary); color: var(--surface-1); border-color: var(--text-primary); }
+.btn {
+  font: inherit; font-size: 12.5px; padding: 6px 13px; cursor: pointer;
+  background: var(--surface-2); color: var(--text-secondary);
+  border: 1px solid var(--border); border-radius: 7px;
+}
+.btn:hover { border-color: var(--border-strong); color: var(--text-primary); }
+.count-note { font-size: 12.5px; color: var(--text-muted); margin-left: auto; }
+
+/* ---------------------------------------------------------------- findings */
+.finding {
+  background: var(--surface-1); border: 1px solid var(--border);
+  border-radius: var(--radius); margin-bottom: 12px; box-shadow: var(--shadow);
+  overflow: hidden;
+}
+.finding.done { opacity: .62; }
+.finding > summary {
+  list-style: none; cursor: pointer; padding: 14px 18px;
+  display: grid; grid-template-columns: auto auto 1fr auto; gap: 12px; align-items: center;
+}
+.finding > summary::-webkit-details-marker { display: none; }
+.finding > summary:hover { background: var(--surface-2); }
+.finding .fid { font-family: var(--mono); font-size: 12px; color: var(--text-muted); }
+.finding .ftitle { display: block; font-weight: 550; font-size: 14.5px; line-height: 1.35; }
+.finding .fmeta  { display: block; font-size: 12px; color: var(--text-muted); margin-top: 3px; }
+.finding .chev { color: var(--text-muted); font-size: 12px; }
+.finding[open] .chev { transform: rotate(90deg); }
+.chev { display: inline-block; transition: transform .12s ease; }
+
+.fbody { padding: 4px 18px 20px; border-top: 1px solid var(--border); }
+.fblock { margin-top: 16px; }
+.fblock > .h {
+  font-size: 11px; text-transform: uppercase; letter-spacing: .07em;
+  color: var(--text-muted); font-weight: 600; margin-bottom: 6px;
+}
+.loc {
+  font-family: var(--mono); font-size: 12.5px;
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-left: 2px solid var(--border-strong);
+  border-radius: 6px; padding: 8px 11px; margin-bottom: 6px; overflow-x: auto;
+}
+.loc .path { color: var(--series-1); font-weight: 600; }
+.loc .code { display: block; margin-top: 4px; color: var(--text-secondary); white-space: pre; }
+
+pre.code {
+  font-family: var(--mono); font-size: 12.5px; line-height: 1.55;
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: 8px; padding: 12px 14px; overflow-x: auto; margin: 0;
+  white-space: pre;
+}
+.diff { display: grid; gap: 10px; grid-template-columns: 1fr 1fr; }
+@media (max-width: 800px) { .diff { grid-template-columns: 1fr; } }
+.diff .lbl { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted); margin-bottom: 5px; }
+.diff .before pre.code { border-left: 2px solid var(--st-critical); }
+.diff .after  pre.code { border-left: 2px solid var(--st-good); }
+
+ol.steps { margin: 0; padding-left: 20px; }
+ol.steps li { margin-bottom: 6px; }
+ul.plain { margin: 0; padding-left: 18px; }
+ul.plain li { margin-bottom: 5px; }
+
+.verify {
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-left: 3px solid var(--st-good);
+  border-radius: 7px; padding: 10px 13px; font-size: 13.5px;
+}
+.warnbox {
+  background: var(--surface-2); border: 1px solid var(--st-warning);
+  border-left: 3px solid var(--st-warning);
+  border-radius: 7px; padding: 10px 13px; font-size: 13.5px;
+}
+.kv { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px 20px; font-size: 13px; }
+.kv .k { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted); }
+
+.badge-nb {
+  font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px;
+  border: 1px solid var(--st-good); color: var(--st-good);
+}
+.badge-br {
+  font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px;
+  border: 1px solid var(--st-critical); color: var(--st-critical);
+}
+
+.chk { width: 16px; height: 16px; cursor: pointer; accent-color: var(--st-good); }
+
+/* ---------------------------------------------------------------- roadmap */
+.phase {
+  display: grid; grid-template-columns: auto 1fr auto; gap: 14px; align-items: start;
+  padding: 14px 0; border-bottom: 1px solid var(--border);
+}
+.phase:last-child { border-bottom: none; }
+.phase .pnum {
+  width: 28px; height: 28px; border-radius: 50%; flex: none;
+  background: var(--series-1); color: #fff;
+  display: grid; place-items: center; font-size: 13px; font-weight: 650;
+}
+.phase .pafter { font-size: 13px; color: var(--text-secondary); white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+/* ---------------------------------------------------------------- cost */
+.cost-caveat {
+  border-left: 3px solid var(--st-warning);
+  background: var(--surface-2); border-radius: 7px;
+  padding: 10px 13px; font-size: 13.5px; margin-bottom: 14px;
+}
+.cost-total { display: flex; gap: 28px; flex-wrap: wrap; align-items: baseline; margin-top: 14px; }
+.cost-total .big { font-size: 30px; font-weight: 650; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+
+/* ---------------------------------------------------------------- misc */
+footer.foot { color: var(--text-muted); font-size: 12.5px; border-top: 1px solid var(--border); padding-top: 16px; margin-top: 40px; }
+.empty { color: var(--text-muted); font-style: italic; padding: 18px; text-align: center; }
+a { color: var(--series-1); }
+
+/* ---------------------------------------------------------------- print */
+@media print {
+  :root { color-scheme: light; }
+  body { background: #fff; font-size: 10.5pt; padding: 0; }
+  .toolbar, .theme-toggle, .no-print { display: none !important; }
+  .card, .tile, .finding, .sev-tile { box-shadow: none; border: 1px solid #ccc; break-inside: avoid; }
+  .finding { break-inside: avoid; }
+  .fbody { display: block !important; }
+  section { break-inside: avoid-page; }
+  h2 { break-after: avoid; }
+  a { text-decoration: none; color: inherit; }
+  .wrap { max-width: none; padding: 0 8mm; }
+}
+</style>
+</head>
+<body>
+<script id="audit-data" type="application/json">
+{
+  "schemaVersion": "1.0",
+  "meta": {
+    "projectName": "Infromix-to-Blazor-2",
+    "targetPath": "Informix source/source",
+    "scanDate": "2026-09-16",
+    "analyst": "Claude Code - security-audit skill v1.0",
+    "depth": "standard",
+    "mode": "analyze",
+    "variant": "legacy",
+    "variantLabel": "Legacy",
+    "standards": [
+      "OWASP Top 10 (2021)",
+      "CWE",
+      "MITRE ATT&CK v16",
+      "NIST SP 800-218 (SSDF v1.1)",
+      "NIST SP 800-53 Rev. 5"
+    ],
+    "stack": {
+      "languages": ["Informix 4GL"],
+      "frameworks": ["Informix 4GL runtime 7.30"],
+      "dataStores": ["Informix Dynamic Server - database stores7"],
+      "entryPoints": ["d4_main.4gl", "menu1.4gl.main", "ordmenu.4gl.main", "query1.4gl.main"]
+    },
+    "inventory": {
+      "filesScanned": 38,
+      "linesScanned": 3847,
+      "filesSkipped": 7,
+      "skipReasons": ["compiled 4GL p-code and form binaries", "prebuilt ELF executable", "compiled help message files"]
+    },
+    "migration": {
+      "isMigration": true,
+      "sourceLanguage": "Informix 4GL",
+      "targetLanguage": "C# / Blazor Server",
+      "sourcePathAudited": "Informix source/source"
+    }
+  },
+  "scores": {
+    "profile": "default-v1",
+    "current": { "score": 56, "grade": "F", "posture": "Critical" },
+    "categories": [
+      {
+        "key": "access-control",
+        "name": "Access Control",
+        "owasp": "A01",
+        "weight": 22,
+        "current": 30,
+        "assessed": true,
+        "note": "Privilege is self-declared by the user at a y/n prompt, and the only enforcement is hiding menu options and swapping a form file. The data-modifying functions themselves contain no check. 100 - (45 Critical + 25 High) = 30."
+      },
+      {
+        "key": "injection",
+        "name": "Injection (SQL/OS)",
+        "owasp": "A03",
+        "weight": 14,
+        "current": 36,
+        "assessed": true,
+        "note": "A deliberate shell escape runs arbitrary OS commands. Four call sites build SELECT statements by string concatenation and PREPARE them. 100 - (45 Critical + 25x0.75 High/Likely) = 36."
+      },
+      {
+        "key": "xss",
+        "name": "Cross-Site Scripting",
+        "owasp": "A03",
+        "weight": 8,
+        "current": null,
+        "assessed": false,
+        "note": "Not applicable and therefore not scored. This is a character-terminal application with no HTML, no browser and no markup rendering path. The weight is redistributed across the assessed categories rather than scored as clean."
+      },
+      {
+        "key": "misconfiguration",
+        "name": "Security Misconfiguration",
+        "owasp": "A05",
+        "weight": 13,
+        "current": 55,
+        "assessed": true,
+        "note": "The database account and its password are committed in cleartext in demo.properties, and they are the Informix default pair. 100 - 45 Critical = 55."
+      },
+      {
+        "key": "cryptographic",
+        "name": "Cryptographic Failures",
+        "owasp": "A02",
+        "weight": 10,
+        "current": 76,
+        "assessed": true,
+        "note": "Customer PII leaves the application in cleartext report files and printer streams, and the database connection carries no transport security. No cryptography is used anywhere in the codebase - there is nothing weak to break because there is nothing at all. 100 - (12 + 12) = 76."
+      },
+      {
+        "key": "validation",
+        "name": "Input Validation / Insecure Design",
+        "owasp": "A04",
+        "weight": 9,
+        "current": 64,
+        "assessed": true,
+        "note": "A user-typed string is used directly as an output file path; fixed-width buffers and fixed-size arrays truncate silently; financial totals are computed in the program and written to the database unverified. 100 - (12 x 3) = 64."
+      },
+      {
+        "key": "authentication",
+        "name": "Authentication Failures",
+        "owasp": "A07",
+        "weight": 8,
+        "current": 75,
+        "assessed": true,
+        "note": "No application-level authentication exists at any of the four entry points. Identity is inherited entirely from the OS and Informix session. 100 - 25 High = 75."
+      },
+      {
+        "key": "logging",
+        "name": "Logging & Monitoring",
+        "owasp": "A09",
+        "weight": 7,
+        "current": 83,
+        "assessed": true,
+        "note": "No record is written for any insert, update or delete, and several SQL operations proceed without checking status. 100 - (12 + 5) = 83."
+      },
+      {
+        "key": "dependencies",
+        "name": "Vulnerable & Outdated Components",
+        "owasp": "A06",
+        "weight": 5,
+        "current": 75,
+        "assessed": true,
+        "note": "Assessed from the dynamic symbol table of the committed d4_load binary. Every linked library is end-of-life. Individual CVEs were NOT confirmed against a live advisory database. 100 - 25 High = 75."
+      },
+      {
+        "key": "integrity",
+        "name": "Software & Data Integrity",
+        "owasp": "A08",
+        "weight": 2,
+        "current": 88,
+        "assessed": true,
+        "note": "A prebuilt executable is committed alongside the source with no checksum, signature or build record. 100 - 12 = 88."
+      },
+      {
+        "key": "ssrf",
+        "name": "Server-Side Request Forgery",
+        "owasp": "A10",
+        "weight": 2,
+        "current": 100,
+        "assessed": true,
+        "note": "Assessed and clean, with positive evidence: the application makes no outbound network requests of any kind. No URL, socket, HTTP or fetch construct appears in any of the 3,847 lines of 4GL source."
+      }
+    ]
+  },
+  "findings": [
+    {
+      "id": "L-1",
+      "title": "Deliberate shell escape runs arbitrary operating-system commands from the main menu",
+      "severity": "Critical",
+      "confidence": "Confirmed",
+      "category": "injection",
+      "owasp": "A03:2021 Injection",
+      "cwe": ["CWE-78", "CWE-77"],
+      "attack": [{ "id": "T1059", "name": "Command and Scripting Interpreter" }],
+      "nist": { "ssdf": ["PW.5", "PW.7"], "sp80053": ["AC-6", "SI-10", "CM-7"] },
+      "status": "new",
+      "exposure": "local-only",
+      "locations": [
+        { "file": "d4_main.4gl", "line": 28, "excerpt": "COMMAND key(\"!\")\n    CALL bang()" },
+        { "file": "d4_main.4gl", "line": 50, "excerpt": "PROMPT \"!\" FOR cmd\nRUN cmd" }
+      ],
+      "evidence": "d4_main.4gl:28 binds the \"!\" key on the MAIN menu to bang(). bang() at lines 43-54 declares cmd CHAR(80), then loops: PROMPT \"!\" FOR cmd followed by RUN cmd. RUN is the 4GL statement that hands a string to the operating system shell. There is no allow-list, no argument parsing, no privilege check and no logging. The WHILE loop keeps the shell open until the user types something other than \"!\" at the continue prompt. The key binding is undocumented in the on-screen menu - it appears only in the source and in helpdemo.src.",
+      "risk": "Anyone who reaches the MAIN menu executes arbitrary commands with the full identity of the account running the application. That is a complete escape from the application's boundary to the host: read or overwrite any file the account can touch, start a network listener, install persistence, or read the Informix configuration and connect to the database directly. Because the application performs no authentication of its own (see L-6), \"anyone who reaches the MAIN menu\" means anyone who can start the program.",
+      "impact": { "confidentiality": "High", "integrity": "High", "availability": "High" },
+      "remediated": false,
+      "references": [
+        { "label": "OWASP A03:2021 Injection", "url": "https://owasp.org/Top10/A03_2021-Injection/" },
+        { "label": "CWE-78: OS Command Injection", "url": "https://cwe.mitre.org/data/definitions/78.html" }
+      ]
+    },
+    {
+      "id": "L-2",
+      "title": "Default database account and password committed in cleartext in the configuration file",
+      "severity": "Critical",
+      "confidence": "Confirmed",
+      "category": "misconfiguration",
+      "owasp": "A05:2021 Security Misconfiguration",
+      "cwe": ["CWE-798", "CWE-1392", "CWE-259"],
+      "attack": [{ "id": "T1552.001", "name": "Unsecured Credentials: Credentials In Files" }],
+      "nist": { "ssdf": ["PW.9", "PS.1"], "sp80053": ["IA-5", "SC-28", "CM-6"] },
+      "status": "new",
+      "exposure": "internal",
+      "locations": [
+        { "file": "demo.properties", "line": 18, "excerpt": "database.user=informix\ndatabase.password=informix" },
+        { "file": "demo.properties", "line": 20, "excerpt": "database.host=informixdb.artinsoft.com\ndatabase.port=1526\ndatabase.server=ol_informix" }
+      ],
+      "evidence": "demo.properties:18-22 carries a complete, usable connection profile in plaintext: user informix, password informix, host informixdb.artinsoft.com, port 1526, server ol_informix. The password is identical to the username, and `informix` is the built-in administrative account of Informix Dynamic Server - the DBA-equivalent identity, not an application service account. The file sits in the source directory beside the code with no access restriction expressed anywhere in the tree.",
+      "risk": "Anyone with read access to the source tree - a developer, a build agent, anyone with a clone of the repository, anyone who recovers a backup - obtains DBA credentials for a named, resolvable database host. That is direct, authenticated access to every table in the instance, bypassing the application entirely, including the customer PII the application is built around. Credentials in a file are also permanent: they survive every copy of the repository and cannot be revoked by deleting the line, only by changing the password on the server.",
+      "impact": { "confidentiality": "High", "integrity": "High", "availability": "High" },
+      "remediated": false,
+      "references": [
+        { "label": "OWASP A05:2021 Security Misconfiguration", "url": "https://owasp.org/Top10/A05_2021-Security_Misconfiguration/" },
+        { "label": "CWE-798: Use of Hard-coded Credentials", "url": "https://cwe.mitre.org/data/definitions/798.html" }
+      ]
+    },
+    {
+      "id": "L-3",
+      "title": "Privilege level is self-declared by the user at a yes/no prompt",
+      "severity": "Critical",
+      "confidence": "Confirmed",
+      "category": "access-control",
+      "owasp": "A01:2021 Broken Access Control",
+      "cwe": ["CWE-602", "CWE-862", "CWE-1390"],
+      "attack": [{ "id": "T1078", "name": "Valid Accounts" }],
+      "nist": { "ssdf": ["PW.1", "PW.5"], "sp80053": ["AC-3", "AC-6", "IA-2"] },
+      "status": "new",
+      "exposure": "local-only",
+      "locations": [
+        { "file": "menu1.4gl.main", "line": 41, "excerpt": "PROMPT \"Are you a privileged user (y/n)? \"\n   FOR CHAR answer\n\nIF answer MATCHES \"[yY]\" THEN\n   LET priv = 1\nEND IF" },
+        { "file": "menu1.4gl.main", "line": 117, "excerpt": "IF priv THEN\n   LET menu_name = \"PRIVILEGED SEARCH\"\n   SHOW OPTION ALL" }
+      ],
+      "evidence": "menu1.4gl.main:39-46 is the whole of the authorization model. priv is initialised to 0, the program asks the user \"Are you a privileged user (y/n)?\", and any answer matching [yY] sets priv = 1. No credential is requested, no identity is established, nothing is checked against the database, the OS, or any list. The priv flag then governs the entire elevated feature set: which menu options are shown (line 117-122), which order form is loaded (lines 52-56), and whether order totals are displayed (lines 366, 383, 396, 405, 414).",
+      "risk": "Every user is an administrator by typing one character. Add, Update and Delete over the customer and orders tables, and the order total-price data that the non-privileged form deliberately withholds, are all obtained by answering \"y\". There is no attack here to speak of - the privilege boundary is a question, and the user supplies the answer. Combined with the absence of audit logging (L-13), an elevation is also unrecorded.",
+      "impact": { "confidentiality": "High", "integrity": "High", "availability": "Medium" },
+      "remediated": false,
+      "references": [
+        { "label": "OWASP A01:2021 Broken Access Control", "url": "https://owasp.org/Top10/A01_2021-Broken_Access_Control/" },
+        { "label": "CWE-602: Client-Side Enforcement of Server-Side Security", "url": "https://cwe.mitre.org/data/definitions/602.html" }
+      ]
+    },
+    {
+      "id": "L-4",
+      "title": "Privilege enforcement is presentation-only; the data-modifying functions check nothing",
+      "severity": "High",
+      "confidence": "Confirmed",
+      "category": "access-control",
+      "owasp": "A01:2021 Broken Access Control",
+      "cwe": ["CWE-602", "CWE-1220", "CWE-863"],
+      "attack": [{ "id": "T1548", "name": "Abuse Elevation Control Mechanism" }],
+      "nist": { "ssdf": ["PW.1", "PW.5"], "sp80053": ["AC-3", "AC-4", "SC-2"] },
+      "status": "new",
+      "exposure": "local-only",
+      "locations": [
+        { "file": "menu1.4gl.main", "line": 116, "excerpt": "HIDE OPTION ALL\nIF priv THEN\n   SHOW OPTION ALL\nELSE\n   SHOW OPTION \"Query\", \"Detail\", \"Switch\", \"Exit\"\nEND IF" },
+        { "file": "menu1.4gl.main", "line": 434, "excerpt": "FUNCTION add_cust()\n\n   CLEAR FORM\n   CALL clear_menu()\n   CALL mess(\"Enter customer information.\")" },
+        { "file": "menu1.4gl.main", "line": 508, "excerpt": "FUNCTION del_cust()\n\n   DEFINE num_orders SMALLINT,\n          answer     CHAR(1)" },
+        { "file": "menu1.4gl.main", "line": 52, "excerpt": "IF priv  THEN      -- specify form file\n   LET ordform = \"p_ordcur\"\nELSE\n   LET ordform = \"ordcur\"\nEND IF" }
+      ],
+      "evidence": "The six privileged functions - add_cust (434), add_ord (453), upd_cust (471), upd_ord (488), del_cust (508), del_ord (543) - contain no reference to priv. They execute INSERT, UPDATE and DELETE unconditionally on entry. The only barrier is menu1.4gl.main:116-122, which calls HIDE OPTION ALL and then SHOW OPTION on a fixed list, i.e. it controls which labels the terminal draws. Confidentiality of order totals is enforced the same way: lines 52-56 load p_ordcur.per for privileged users and ordcur.per otherwise, and the two form files are identical apart from the Total Price field, which p_ordcur.per:11 declares as f009 = formonly.t_price and ordcur.per omits. The value is fetched from the database in both cases - set_curs case 2 (line 236) always selects t_price, and view_ord always FETCHes INTO p_orders.*, t_price (line 357) - and then simply not drawn.",
+      "risk": "The access-control decision and the data operation are in different places, which is the defect that outlives any particular bypass. The privileged data is retrieved into program memory for every user and withheld only by the choice of screen layout, so anything that reaches the process state - a core dump, a debugger, a trace, a terminal-capture, or a future code change that displays the record generically - discloses it. Equally, any future caller of add_cust or del_cust inherits no protection at all, because there is none inside them to inherit.",
+      "impact": { "confidentiality": "High", "integrity": "High", "availability": "Low" },
+      "remediated": false,
+      "references": [
+        { "label": "CWE-1220: Insufficient Granularity of Access Control", "url": "https://cwe.mitre.org/data/definitions/1220.html" }
+      ]
+    },
+    {
+      "id": "L-5",
+      "title": "SELECT statements assembled by string concatenation and executed via PREPARE",
+      "severity": "High",
+      "confidence": "Likely",
+      "category": "injection",
+      "owasp": "A03:2021 Injection",
+      "cwe": ["CWE-89", "CWE-943"],
+      "attack": [{ "id": "T1190", "name": "Exploit Public-Facing Application" }],
+      "nist": { "ssdf": ["PW.5"], "sp80053": ["SI-10"] },
+      "status": "new",
+      "exposure": "local-only",
+      "locations": [
+        { "file": "d4_cust.4gl", "line": 119, "excerpt": "LET query_text = \"select * from customer where \", where_part CLIPPED,\n\t\t\t\" order by lname\"\nPREPARE statement_1 FROM query_text" },
+        { "file": "d4_report.4gl", "line": 62, "excerpt": "LET query_text = \"select * from customer where \", where_part CLIPPED,\n\t \" order by zipcode\"\nPREPARE label_st FROM query_text" },
+        { "file": "menu1.4gl.main", "line": 244, "excerpt": "LET query_str = \n  \"SELECT orders.*, t_price \",\n  \"FROM orders, OUTER price WHERE \",\n     \"orders.order_num = price.order_num AND \",\n     \"orders.customer_num = \",\n           p_customer.customer_num USING \"###\"" },
+        { "file": "query1.4gl.main", "line": 84, "excerpt": "LET s1 = \"SELECT * FROM customer WHERE \",\n   query_1 CLIPPED                   \nPREPARE s_1 FROM s1" }
+      ],
+      "evidence": "Four sites build a SELECT by concatenating a WHERE fragment into a statement string and PREPARE it. At three of them the fragment comes from CONSTRUCT, the 4GL query-by-example statement, which generates the predicate from the user's field entries. At the fourth - menu1.4gl.main:244-249, set_curs case 3 - a program value is formatted straight into the text with USING \"###\". None of the four uses a host variable or a placeholder. Confidence is Likely rather than Confirmed because CONSTRUCT is a runtime-generated fragment rather than raw user text, and the runtime applies its own quoting to character fields; I did not have an Informix runtime available to demonstrate a working payload. What is Confirmed is the structural weakness that comes with it: where_part is declared CHAR(500) (d4_cust.4gl:101, d4_report.4gl:39) and query_1/query_str CHAR(300) (menu1.4gl.main:220, query1.4gl.main:46), so a long set of criteria is silently truncated by CLIPPED concatenation and the resulting predicate is a different predicate - potentially a valid one that matches more rows. No site checks status after PREPARE before DECLARE and OPEN.",
+      "risk": "Unparameterized query construction is the mechanism by which a data value becomes code. Even taking the CONSTRUCT quoting at face value, the truncation path produces a query the programmer did not write from input the user controls, and the missing status check after PREPARE means a malformed statement is carried forward to OPEN rather than stopping. The set_curs case-3 interpolation has no CONSTRUCT protection at all and depends entirely on p_customer.customer_num being numeric.",
+      "impact": { "confidentiality": "High", "integrity": "Medium", "availability": "Low" },
+      "remediated": false,
+      "references": [
+        { "label": "CWE-89: SQL Injection", "url": "https://cwe.mitre.org/data/definitions/89.html" }
+      ]
+    },
+    {
+      "id": "L-6",
+      "title": "No application-level authentication at any entry point",
+      "severity": "High",
+      "confidence": "Confirmed",
+      "category": "authentication",
+      "owasp": "A07:2021 Identification and Authentication Failures",
+      "cwe": ["CWE-306", "CWE-287"],
+      "attack": [{ "id": "T1078", "name": "Valid Accounts" }],
+      "nist": { "ssdf": ["PW.1"], "sp80053": ["IA-2", "AC-2", "AC-3"] },
+      "status": "new",
+      "exposure": "local-only",
+      "locations": [
+        { "file": "d4_main.4gl", "line": 5, "excerpt": "MAIN\n\n    DEFER INTERRUPT\n    OPTIONS\n\tHELP FILE \"helpdemo\"\n    LET print_option = \"s\"\n    CALL get_states()" },
+        { "file": "menu1.4gl.main", "line": 30, "excerpt": "MAIN\n\n   DEFINE ordform     CHAR(18),\n          answer      CHAR(1)" },
+        { "file": "query1.4gl.main", "line": 15, "excerpt": "MAIN\n\n   OPTIONS HELP FILE \"helpdemo\"," },
+        { "file": "d4_globals.4gl", "line": 1, "excerpt": "DATABASE stores7" }
+      ],
+      "evidence": "Absence check across all four MAIN blocks. Each opens the database with the bare DATABASE stores7 statement and proceeds directly to a menu offering full CRUD over the customer and orders tables. Searching the 3,847 lines of 4GL source for any login, password, user-lookup, session or credential construct returns nothing; the only occurrence of the string 'password' in the whole tree is the committed credential in demo.properties (L-2). The only user-identity concept in the codebase is the priv flag of L-3, which the user sets themselves.",
+      "risk": "The application relies entirely on the OS login and the Informix database session for identity. That is a defensible posture for a 1980s green-screen deployment on a controlled host, and it is worth stating that it is a design choice rather than a mistake. But it means the application itself can distinguish no user from any other: it cannot restrict a user to their own records, cannot attribute a change, and cannot be placed behind any access boundary finer than 'can start this program'. Every access-control finding above rests on this absence, and no control can be added without an identity to bind it to.",
+      "impact": { "confidentiality": "High", "integrity": "High", "availability": "Low" },
+      "remediated": false,
+      "references": [
+        { "label": "CWE-306: Missing Authentication for Critical Function", "url": "https://cwe.mitre.org/data/definitions/306.html" }
+      ]
+    },
+    {
+      "id": "L-7",
+      "title": "Application runtime and system libraries are decades past end of support",
+      "severity": "High",
+      "confidence": "Confirmed",
+      "category": "dependencies",
+      "owasp": "A06:2021 Vulnerable and Outdated Components",
+      "cwe": ["CWE-1104", "CWE-1330"],
+      "attack": [{ "id": "T1190", "name": "Exploit Public-Facing Application" }],
+      "nist": { "ssdf": ["PW.4", "RV.1"], "sp80053": ["SA-22", "SI-2", "CM-8"] },
+      "status": "new",
+      "exposure": "internal",
+      "locations": [
+        { "file": "d4_load", "line": 1, "excerpt": "lib4gsh730.so  libcrypt.so.1  libm.so.6  libdl.so.2  libc.so.6  GLIBC_2.0" },
+        { "file": "d4_load", "line": 1, "excerpt": "GCC: (GNU) 3.3.1 (SuSE Linux)   /usr/src/packages/BUILD/glibc-2.3/csu" }
+      ],
+      "evidence": "The dynamic symbol table and comment section of the committed d4_load ELF binary record the full dependency set, since no manifest file exists anywhere in the tree. It links lib4gsh730.so - the Informix 4GL runtime, version 7.30 - plus libcrypt.so.1, libm.so.6, libdl.so.2 and libc.so.6 at GLIBC_2.0. The .comment section reads 'GCC: (GNU) 3.3.1 (SuSE Linux)' and the debug paths reference glibc-2.3. GCC 3.3.1 was released in 2003; glibc 2.3 the same year; Informix 4GL 7.30 predates it. IBM ended support for the 4GL product line long ago and no patched build is available for any of these.",
+      "risk": "There is no supplier to receive a vulnerability report and no patch to apply, so every defect found in these components since 2003 is permanent for as long as the system runs. This is the finding that most directly justifies the migration itself: unlike the others, it cannot be fixed in place at any price. Note the limit on this assessment - I established that the components are unsupported, not which specific CVEs affect them; no advisory database was queried during this run.",
+      "impact": { "confidentiality": "High", "integrity": "High", "availability": "High" },
+      "remediated": false,
+      "references": [
+        { "label": "CWE-1104: Use of Unmaintained Third Party Components", "url": "https://cwe.mitre.org/data/definitions/1104.html" }
+      ]
+    },
+    {
+      "id": "L-8",
+      "title": "User-typed string used directly as a report output file path",
+      "severity": "Medium",
+      "confidence": "Confirmed",
+      "category": "validation",
+      "owasp": "A04:2021 Insecure Design",
+      "owaspCurrent": null,
+      "cwe": ["CWE-73", "CWE-22"],
+      "attack": [{ "id": "T1565.001", "name": "Data Manipulation: Stored Data Manipulation" }],
+      "nist": { "ssdf": ["PW.5"], "sp80053": ["SI-10", "AC-3"] },
+      "status": "new",
+      "exposure": "local-only",
+      "locations": [
+        { "file": "d4_report.4gl", "line": 68, "excerpt": "PROMPT \" Enter file name for labels >\" FOR file_name\nIF file_name IS NULL THEN\n\tLET file_name = \"labels.out\"\nEND IF" },
+        { "file": "d4_report.4gl", "line": 74, "excerpt": "START REPORT labels_report TO file_name" },
+        { "file": "d4_report.4gl", "line": 157, "excerpt": "PROMPT \" Enter file name for AR Report >\" FOR file_name\n...\nSTART REPORT ar_report TO file_name" }
+      ],
+      "evidence": "d4_report.4gl:68 and :157 read file_name CHAR(20) from the user and pass it unchanged to START REPORT ... TO file_name at :74 and :163. The only processing is a NULL check that substitutes a default. There is no rejection of absolute paths, no rejection of ../ segments, no directory confinement and no check for an existing file - START REPORT creates or truncates. The same pattern appears in d4_orders.4gl:138, where the invoice filename is built from the order number rather than user input and so is not affected.",
+      "risk": "Any file the account can write is a valid target, including the application's own sources, the demo.properties credential file, or a dot-file in the account's home directory that is executed on next login. The overwrite is silent and the content is the report. Severity is held at Medium because the writer already has shell access by design through L-1 - this adds no capability that the shell escape does not already grant - but it is a distinct defect that would matter immediately if the shell escape were removed.",
+      "impact": { "confidentiality": "Low", "integrity": "High", "availability": "Low" },
+      "remediated": false,
+      "references": [
+        { "label": "CWE-73: External Control of File Name or Path", "url": "https://cwe.mitre.org/data/definitions/73.html" }
+      ]
+    },
+    {
+      "id": "L-9",
+      "title": "Customer PII written to unprotected report files and printer streams",
+      "severity": "Medium",
+      "confidence": "Confirmed",
+      "category": "cryptographic",
+      "owasp": "A02:2021 Cryptographic Failures",
+      "cwe": ["CWE-359", "CWE-532", "CWE-311"],
+      "attack": [{ "id": "T1005", "name": "Data from Local System" }],
+      "nist": { "ssdf": ["PW.9"], "sp80053": ["SC-28", "MP-4", "AC-3"] },
+      "status": "new",
+      "exposure": "local-only",
+      "locations": [
+        { "file": "d4_report.4gl", "line": 116, "excerpt": "PRINT rl.fname CLIPPED, 1 SPACE, rl.lname\nPRINT rl.company\nPRINT rl.address1\n...\nPRINT rl.city CLIPPED, \", \", rl.state, 2 SPACES, rl.zipcode" },
+        { "file": "d4_orders.4gl", "line": 427, "excerpt": "PRINT \"Bill To:\", COLUMN 10,c.fname CLIPPED, \" \", c.lname CLIPPED;\n...\nPRINT COLUMN 10,c.phone CLIPPED;" },
+        { "file": "d4_report.4gl", "line": 229, "excerpt": "PRINT \" \",r.order_date,7 SPACES,r.order_num USING \"###&\",8 SPACES,\n      r.ship_date,\"  \", \n      GROUP SUM(r.total_price) USING \"$$$$,$$$,$$$.&&\"" }
+      ],
+      "evidence": "Three reports emit customer personal data in cleartext. labels_report (d4_report.4gl:105-126) prints name, company and full postal address for every row matched by the query-by-example. r_invoice (d4_orders.4gl:387-477) prints the entire customer record including telephone number alongside order financials. ar_report (d4_report.4gl:192-241) prints names, companies and outstanding amounts. Output destination is chosen by the print_option global (d4_report.4gl:244-264): a plain file in the working directory, the system printer queue, or the terminal. No destination applies encryption, permissions, classification marking or retention. Note the reports are not restricted to a single customer - print_labels accepts an empty query-by-example, so one keystroke exports the whole customer table to a file.",
+      "risk": "The application's bulk-export path produces unprotected plaintext containing names, addresses, telephone numbers and outstanding balances, in a working directory and in a print spool that are shared by design. Anyone with filesystem or spool access reads it without touching the application or the database. There is no encryption anywhere in this codebase to weaken - the finding is the complete absence of protection on data at rest, not a weak algorithm.",
+      "impact": { "confidentiality": "High", "integrity": "Low", "availability": "Low" },
+      "remediated": false,
+      "references": [
+        { "label": "CWE-359: Exposure of Private Personal Information", "url": "https://cwe.mitre.org/data/definitions/359.html" }
+      ]
+    },
+    {
+      "id": "L-10",
+      "title": "Database connection configured with no transport encryption",
+      "severity": "Medium",
+      "confidence": "Confirmed",
+      "category": "cryptographic",
+      "owasp": "A02:2021 Cryptographic Failures",
+      "cwe": ["CWE-319"],
+      "attack": [{ "id": "T1040", "name": "Network Sniffing" }],
+      "nist": { "ssdf": ["PW.9"], "sp80053": ["SC-8", "SC-13"] },
+      "status": "new",
+      "exposure": "internal",
+      "locations": [
+        { "file": "demo.properties", "line": 20, "excerpt": "database.host=informixdb.artinsoft.com\ndatabase.port=1526\ndatabase.server=ol_informix\ndatabase.server.5Xversion=false" }
+      ],
+      "evidence": "demo.properties:20-23 defines a remote database connection - a named host across the network on port 1526 - with no SSL, TLS, encryption or certificate setting of any kind. The property set contains no key that could enable one. Port 1526 is the plain sqlexec service port; Informix's encrypted listener would be configured separately and is not referenced anywhere in the tree.",
+      "risk": "The connection carries the credentials of L-2 and then every row of customer PII the application reads or writes, in cleartext across the network. Anyone positioned on the path captures both the DBA password and the data. Because the host is remote rather than a local socket, this traffic genuinely crosses a network segment rather than staying inside one machine.",
+      "impact": { "confidentiality": "High", "integrity": "Medium", "availability": "Low" },
+      "remediated": false,
+      "references": [
+        { "label": "CWE-319: Cleartext Transmission of Sensitive Information", "url": "https://cwe.mitre.org/data/definitions/319.html" }
+      ]
+    },
+    {
+      "id": "L-11",
+      "title": "Fixed-width buffers and fixed-size arrays truncate data silently",
+      "severity": "Medium",
+      "confidence": "Confirmed",
+      "category": "validation",
+      "owasp": "A04:2021 Insecure Design",
+      "cwe": ["CWE-1284", "CWE-131"],
+      "nist": { "ssdf": ["PW.5"], "sp80053": ["SI-10"] },
+      "status": "new",
+      "exposure": "local-only",
+      "locations": [
+        { "file": "d4_main.4gl", "line": 94, "excerpt": "FOREACH c_state INTO p_state[state_cnt].*\n    LET state_cnt = state_cnt + 1\n    IF state_cnt > 50 THEN\n        EXIT FOREACH\n    END IF\nEND FOREACH" },
+        { "file": "d4_main.4gl", "line": 113, "excerpt": "FOREACH stock_list INTO p_stock[stock_cnt].*\n    LET stock_cnt = stock_cnt + 1\n    IF stock_cnt > 30 THEN\n        EXIT FOREACH\n    END IF\nEND FOREACH" },
+        { "file": "d4_cust.4gl", "line": 101, "excerpt": "DEFINE where_part CHAR(500),\n       query_text CHAR(500)," },
+        { "file": "d4_orders.4gl", "line": 266, "excerpt": "FOREACH item_list INTO p_items[idx].*\n    LET idx = idx + 1\n    IF idx > 10 THEN\n        ERROR \"More than 10 items; only 10 items displayed\"" }
+      ],
+      "evidence": "The global arrays are fixed at compile time (d4_globals.4gl:12-29): p_items ARRAY[10], p_stock ARRAY[30], p_state ARRAY[50]. The loops that fill them stop at the bound. Three of the four do so silently - get_states (d4_main.4gl:96) and get_stocks (d4_main.4gl:115) simply EXIT FOREACH with no message, so a catalogue of 31 stock items presents as a catalogue of 30 with nothing to indicate the difference. Only the items loop in get_order (d4_orders.4gl:268) tells the user. The same pattern applies to the character buffers: where_part CHAR(500), query_text CHAR(500), cmd CHAR(80), file_name CHAR(20), msg CHAR(40).",
+      "risk": "Silent truncation of a result set is a correctness failure that presents as correct output, which is what makes it worth reporting in a security review rather than a functional one. A stock item that exists but is never shown cannot be ordered; a state that is never listed cannot be selected. The buffer case is the more serious of the two because the truncated value is a SQL predicate (see L-5): a WHERE clause cut off at 500 characters is still syntactically valid often enough to execute, and it selects a different set of rows than the user asked for.",
+      "impact": { "confidentiality": "Medium", "integrity": "Medium", "availability": "Low" },
+      "remediated": false,
+      "references": [
+        { "label": "CWE-1284: Improper Validation of Specified Quantity in Input", "url": "https://cwe.mitre.org/data/definitions/1284.html" }
+      ]
+    },
+    {
+      "id": "L-12",
+      "title": "Order financial totals are computed in the program and written to the database unverified",
+      "severity": "Medium",
+      "confidence": "Confirmed",
+      "category": "validation",
+      "owasp": "A04:2021 Insecure Design",
+      "cwe": ["CWE-602", "CWE-807"],
+      "attack": [{ "id": "T1565.001", "name": "Data Manipulation: Stored Data Manipulation" }],
+      "nist": { "ssdf": ["PW.1", "PW.5"], "sp80053": ["SI-10", "SI-7"] },
+      "status": "new",
+      "exposure": "local-only",
+      "locations": [
+        { "file": "d4_orders.4gl", "line": 166, "excerpt": "LET order_total = 1.1 * order_total\nDISPLAY order_total TO t_price" },
+        { "file": "d4_orders.4gl", "line": 177, "excerpt": "LET p_items[pa_curr].total_price =\n    p_items[pa_curr].quantity * p_items[pa_curr].unit_price" },
+        { "file": "d4_orders.4gl", "line": 205, "excerpt": "INSERT INTO items \n    VALUES (p_items[idx].item_num, p_orders.order_num,\n        p_items[idx].stock_num, p_items[idx].manu_code,\n        p_items[idx].quantity, p_items[idx].total_price)" },
+        { "file": "d4_orders.4gl", "line": 466, "excerpt": "LET sales_tax = 0.065 * calc_total\nLET x.ship_charge = 0.035 * calc_total" }
+      ],
+      "evidence": "item_total (d4_orders.4gl:172-180) computes quantity x unit_price in program memory. insert_items (:200-215) writes that computed value into the items.total_price column directly. The database is never asked to derive or check it. Separately, the running total shown on screen applies a flat 10% uplift (LET order_total = 1.1 * order_total, :166) with no comment on what the 10% represents, while the invoice printed moments later from the same data derives 6.5% sales tax plus 3.5% shipping (:466-467). The two agree only because 0.065 + 0.035 happens to equal 0.1 - a coincidence that any future rate change breaks silently, in opposite directions, on the screen and on the customer's invoice.",
+      "risk": "Financial values reach persistent storage without server-side derivation or validation, so the stored total is only ever as trustworthy as the process that computed it. The unit_price used in that arithmetic is refreshed from the stock table at entry time (get_item, :303-323) and not re-checked at commit, so a price change between the two leaves the order priced at the older value with no record of it. The duplicated tax constants are a correctness hazard of the same shape: two independent statements of one business rule, neither derived from the other.",
+      "impact": { "confidentiality": "Low", "integrity": "High", "availability": "Low" },
+      "remediated": false,
+      "references": [
+        { "label": "CWE-807: Reliance on Untrusted Inputs in a Security Decision", "url": "https://cwe.mitre.org/data/definitions/807.html" }
+      ]
+    },
+    {
+      "id": "L-13",
+      "title": "No audit record is written for any data modification",
+      "severity": "Medium",
+      "confidence": "Confirmed",
+      "category": "logging",
+      "owasp": "A09:2021 Security Logging and Monitoring Failures",
+      "cwe": ["CWE-778", "CWE-223"],
+      "attack": [{ "id": "T1070", "name": "Indicator Removal" }],
+      "nist": { "ssdf": ["PW.5", "RV.1"], "sp80053": ["AU-2", "AU-3", "AU-12"] },
+      "status": "new",
+      "exposure": "local-only",
+      "locations": [
+        { "file": "d4_cust.4gl", "line": 93, "excerpt": "INSERT INTO customer VALUES (p_customer.*)" },
+        { "file": "d4_cust.4gl", "line": 197, "excerpt": "UPDATE customer SET customer.* = p_customer.*\n    WHERE customer_num = p_customer.customer_num" },
+        { "file": "d4_cust.4gl", "line": 233, "excerpt": "DELETE FROM customer \n    WHERE customer_num = p_customer.customer_num" },
+        { "file": "menu1.4gl.main", "line": 528, "excerpt": "DELETE FROM customer \n   WHERE customer_num = p_customer.customer_num" },
+        { "file": "d4_orders.4gl", "line": 118, "excerpt": "INSERT INTO orders (order_num, order_date, customer_num, \n\t    ship_instruct, po_num)" }
+      ],
+      "evidence": "Absence check across every data-modifying statement in the tree - eleven INSERT, UPDATE and DELETE sites in d4_cust.4gl, d4_orders.4gl, menu1.4gl.main and ordmenu.4gl.main. None is accompanied by a write to a log table, a file, syslog or any other sink. The application produces no log output at all: the only diagnostic constructs in the codebase are ERROR, MESSAGE and DISPLAY, all of which write to the terminal screen and are erased by the next screen update. There is no log file to configure and no logging code to enable.",
+      "risk": "No modification can be attributed to anyone, and no modification can be detected after the fact. A customer record altered or deleted leaves the database in its new state with no trace of the previous one, who made the change, or when. This compounds L-3 specifically: the elevation to privileged mode is itself unrecorded, so the sequence 'user elevates, deletes a customer, exits' leaves exactly as much evidence as an ordinary read - none.",
+      "impact": { "confidentiality": "Low", "integrity": "High", "availability": "Low" },
+      "remediated": false,
+      "references": [
+        { "label": "CWE-778: Insufficient Logging", "url": "https://cwe.mitre.org/data/definitions/778.html" }
+      ]
+    },
+    {
+      "id": "L-14",
+      "title": "Prebuilt executable committed to the source tree without provenance or integrity data",
+      "severity": "Medium",
+      "confidence": "Confirmed",
+      "category": "integrity",
+      "owasp": "A08:2021 Software and Data Integrity Failures",
+      "cwe": ["CWE-494", "CWE-1357"],
+      "attack": [{ "id": "T1195.001", "name": "Supply Chain Compromise: Compromise Software Dependencies and Development Tools" }],
+      "nist": { "ssdf": ["PS.2", "PS.3", "PW.4"], "sp80053": ["SI-7", "CM-14", "SA-10"] },
+      "status": "new",
+      "exposure": "internal",
+      "locations": [
+        { "file": "d4_load", "line": 1, "excerpt": "ELF 32-bit LSB executable, Intel 80386 - d4_load.c / d4_load.4gl" },
+        { "file": "d4_load", "line": 1, "excerpt": "insert into  stock  | stock.unl   insert into  items  | items.unl   insert into  customer  | customer.unl" }
+      ],
+      "evidence": "d4_load is a 10,536-byte ELF 32-bit executable committed among the source files. Its string table confirms what it does: it opens the stores7 database and runs a series of 'insert into <table> | <table>.unl' bulk loads against stock, items, manufact, orders, customer, state and syscolatt. The matching source - d4_load.4gl, named in the binary's own debug strings - is not present in the tree. There is no checksum, signature, build script or version record for it anywhere. Two further compiled artifacts are committed on the same terms: demo4.4ge (166KB of 4GL p-code) and helpdemo (the compiled help message file), neither reproducible from the tree in its current state.",
+      "risk": "An executable whose source is absent cannot be reviewed, and one with no recorded hash cannot be verified against anything. Whoever runs d4_load grants it write access to every table in the database on the strength of its filename. This is the standard shape of a supply-chain weakness: the trust decision is made once, informally, and then inherited by every copy of the repository. The specific binary here appears to do exactly what its strings say, but that is an observation about this copy, not a property the tree can establish for any other.",
+      "impact": { "confidentiality": "Medium", "integrity": "High", "availability": "Medium" },
+      "remediated": false,
+      "references": [
+        { "label": "CWE-494: Download of Code Without Integrity Check", "url": "https://cwe.mitre.org/data/definitions/494.html" }
+      ]
+    },
+    {
+      "id": "L-15",
+      "title": "SQL error conditions unchecked around prepared statements and item inserts",
+      "severity": "Low",
+      "confidence": "Confirmed",
+      "category": "logging",
+      "owasp": "A09:2021 Security Logging and Monitoring Failures",
+      "cwe": ["CWE-391", "CWE-390"],
+      "nist": { "ssdf": ["PW.5"], "sp80053": ["SI-11"] },
+      "status": "new",
+      "exposure": "local-only",
+      "locations": [
+        { "file": "d4_cust.4gl", "line": 121, "excerpt": "PREPARE statement_1 FROM query_text\nDECLARE customer_set SCROLL CURSOR FOR statement_1\n\nOPEN customer_set" },
+        { "file": "d4_orders.4gl", "line": 116, "excerpt": "WHENEVER ERROR CONTINUE\nBEGIN WORK" },
+        { "file": "d4_orders.4gl", "line": 314, "excerpt": "IF status THEN\n\tLET p_items[pa_curr].description = NULL\n\tLET p_items[pa_curr].unit_price = NULL\nEND IF" }
+      ],
+      "evidence": "d4_cust.4gl:121-124, d4_report.4gl:64-65, menu1.4gl.main:253-255 and query1.4gl.main:86-87 all PREPARE a statement and then immediately DECLARE and OPEN a cursor for it without testing status. d4_orders.4gl:116 sets WHENEVER ERROR CONTINUE for the order transaction; within that window insert_items (:200-215) tests status per row but reports nothing about which row failed, and get_item (:303-323) treats any non-zero status as 'no such stock item' by nulling the description and price - so a genuine database error is indistinguishable from a missing row.",
+      "risk": "Errors are suppressed rather than surfaced. The PREPARE case means a malformed statement - the likely result of the truncation in L-11 - proceeds to OPEN and reports its failure as an empty result set, which reads to the user as 'no matching customers'. Severity is Low because none of these paths grants access or corrupts data on its own; the cost is diagnostic, and it is felt when something else goes wrong.",
+      "impact": { "confidentiality": "Low", "integrity": "Low", "availability": "Low" },
+      "remediated": false,
+      "references": [
+        { "label": "CWE-391: Unchecked Error Condition", "url": "https://cwe.mitre.org/data/definitions/391.html" }
+      ]
+    },
+    {
+      "id": "L-16",
+      "title": "Seed dataset with person-shaped records committed to the source tree",
+      "severity": "Info",
+      "confidence": "Confirmed",
+      "category": "cryptographic",
+      "owasp": "A02:2021 Cryptographic Failures",
+      "cwe": ["CWE-1188"],
+      "nist": { "ssdf": ["PW.9"], "sp80053": ["MP-6", "SC-28"] },
+      "status": "new",
+      "exposure": "internal",
+      "locations": [
+        { "file": "customer.unl", "line": 1, "excerpt": "101|Ludwig|Pauli|All Sports Supplies|213 Erstwild Court||Sunnyvale|CA|94086|408-789-8075|" },
+        { "file": "orders.unl", "line": 1, "excerpt": "order rows with customer_num foreign keys" }
+      ],
+      "evidence": "Seven .unl pipe-delimited data files are committed: customer, items, manufact, orders, state, stock and syscolatt. customer.unl holds 18 rows of names, company names, street addresses, cities, postal codes and telephone numbers in valid format. These are the rows that d4_load (L-14) bulk-loads into the database.",
+      "risk": "Recorded as Info rather than as a defect, because this is IBM's published stores7 demonstration dataset - the names and addresses are fictional and have shipped with the Informix product for decades, so no real person's data is exposed here. It is logged for one reason: the same seven files were carried unchanged into the modernized codebase, so anyone reading the comparison report should know they were already reviewed and cleared on this side, and does not need to look again. The practice itself is worth noting only if the files are ever replaced with an extract from production, which is the common way a fixture like this turns into a disclosure.",
+      "impact": { "confidentiality": "Low", "integrity": "Low", "availability": "Low" },
+      "remediated": false
+    }
+  ],
+  "strengths": [
+    {
+      "title": "Data modification uses static SQL with host variables",
+      "detail": "Every INSERT, UPDATE and DELETE in the tree is a compile-time statement binding program record fields, not a concatenated string - d4_cust.4gl:93/197/233, d4_orders.4gl:118/205, menu1.4gl.main:441/460/477/495/528/563. The dynamic-SQL weakness of L-5 is confined to the four query-by-example SELECT paths; it never touches a write.",
+      "category": "injection"
+    },
+    {
+      "title": "Referential integrity checked before destructive operations",
+      "detail": "delete_customer (d4_cust.4gl:221-228) and del_cust (menu1.4gl.main:513-520) both count dependent orders and refuse the delete if any exist; del_ord (menu1.4gl.main:548-555) does the same for items. The check is in the application rather than the schema, but it is present and correct at every delete site.",
+      "category": "validation"
+    },
+    {
+      "title": "Destructive operations require explicit typed confirmation",
+      "detail": "Every delete path prompts for a y/n answer and proceeds only on a match - d4_cust.4gl:230-232, menu1.4gl.main:524-527 and :559-562, ordmenu.4gl.main:100-115. No delete happens on a single keystroke.",
+      "category": "access-control"
+    },
+    {
+      "title": "Order creation is transactional with rollback on failure",
+      "detail": "add_order (d4_orders.4gl:117-135) wraps the orders insert and all item inserts in BEGIN WORK / COMMIT WORK, and issues ROLLBACK WORK if either the header insert or insert_items fails. A partially written order cannot be left behind.",
+      "category": "validation"
+    },
+    {
+      "title": "Form definitions constrain input at the field level",
+      "detail": "Computed and identity fields are declared NOENTRY so the user cannot type over them - items.item_num, stock.description, stock.unit_price and items.total_price in orderform.per:45-51, customer.customer_num in custform.per:19. The telephone field carries a PICTURE mask and the state code is UPSHIFT-normalised. This is why the total_price of L-12 is not directly user-editable, and it is the reason that finding is Medium rather than High.",
+      "category": "validation"
+    },
+    {
+      "title": "No outbound network capability anywhere in the application",
+      "detail": "The application's entire external surface is the database connection and the terminal. No URL, socket, HTTP client or fetch construct appears in any of the 3,847 lines of 4GL source, so the SSRF category is clean on positive evidence rather than by assumption.",
+      "category": "ssrf"
+    }
+  ],
+  "evidenceLog": [
+    { "check": "OS command execution primitives", "ruleId": "SQL-LEG-EXEC-01", "method": "grep", "query": "RUN |SYSTEM\\(|EXECUTE IMMEDIATE", "result": "1 match - d4_main.4gl:51 RUN cmd", "conclusion": "Finding L-1" },
+    { "check": "Dynamic SQL assembly", "ruleId": "SQL-LEG-INJ-01", "method": "grep", "query": "PREPARE .* FROM", "result": "5 matches across d4_cust.4gl, d4_report.4gl, menu1.4gl.main, query1.4gl.main, helpdemo.src", "conclusion": "Finding L-5; each site read in full and traced back to its CONSTRUCT source" },
+    { "check": "Hard-coded secrets in configuration", "ruleId": "UNI-SEC-01", "method": "grep", "query": "(?i)(password|passwd|secret|api[_-]?key|token|credential)", "result": "1 credential match - demo.properties:19 database.password=informix", "conclusion": "Finding L-2" },
+    { "check": "Cryptographic primitives in use", "ruleId": "UNI-CRY-01", "method": "grep", "query": "(?i)(md5|sha1|des|rc4|encrypt|cipher)", "result": "0 matches in 4GL source", "conclusion": "No weak algorithm to report; absence of encryption recorded instead as L-9 and L-10" },
+    { "check": "Authentication constructs", "ruleId": "UNI-AUTH-01", "method": "read", "query": "all four MAIN blocks read in full", "result": "0 login, credential, session or user-lookup constructs across 4 entry points", "conclusion": "Finding L-6 (present-required rule, zero hits is the finding)" },
+    { "check": "Authorization enforcement", "ruleId": "UNI-AUTHZ-01", "method": "read", "query": "priv flag traced from assignment to every use", "result": "priv set at menu1.4gl.main:39-46 from user input; used only at :52 (form choice) and :117 (menu visibility); 0 references inside the 6 privileged functions", "conclusion": "Findings L-3 and L-4" },
+    { "check": "Audit logging of data changes", "ruleId": "UNI-LOG-01", "method": "grep", "query": "INSERT INTO|UPDATE |DELETE FROM", "result": "11 modification sites, 0 accompanied by any log write; no log sink exists in the tree", "conclusion": "Finding L-13 (present-required rule)" },
+    { "check": "File path handling", "ruleId": "UNI-PATH-01", "method": "grep", "query": "START REPORT .* TO ", "result": "6 matches; 2 take an unvalidated user-supplied filename (d4_report.4gl:74, :163)", "conclusion": "Finding L-8" },
+    { "check": "Outbound network requests", "ruleId": "UNI-SSRF-01", "method": "grep", "query": "http|url|socket|connect|fetch", "result": "0 matches outside the DATABASE statement", "conclusion": "SSRF category clean on positive evidence; strength recorded" },
+    { "check": "Dependency inventory", "ruleId": "UNI-DEP-01", "method": "read", "query": "d4_load ELF dynamic symbol table and .comment section", "result": "lib4gsh730.so, libcrypt.so.1, libc.so.6 GLIBC_2.0; GCC 3.3.1 (SuSE Linux), glibc-2.3 build paths", "conclusion": "Finding L-7. No manifest file exists in the tree; no advisory database was queried" },
+    { "check": "Committed binary artifacts", "ruleId": "UNI-INT-01", "method": "glob", "query": "files with no source counterpart", "result": "d4_load (ELF executable), demo4.4ge (4GL p-code), helpdemo (compiled help), 11 .frm form binaries", "conclusion": "Finding L-14" },
+    { "check": "Fixed-size buffer and array bounds", "ruleId": "SQL-LEG-BUF-01", "method": "read", "query": "d4_globals.4gl DEFINE block and every FOREACH bound check", "result": "p_items[10], p_stock[30], p_state[50]; 3 of 4 fill loops truncate with no user-visible message", "conclusion": "Finding L-11" }
+  ],
+  "cost": {
+    "source": "transcript",
+    "startedAt": "2026-09-16T21:36:57Z",
+    "finishedAt": "2026-09-16T21:44:03Z",
+    "transcript": "C:\\Users\\GilberthEliasSeguraD\\.claude\\projects\\C--Users-GilberthEliasSeguraD-Documents-Security-audits\\5c7e7036-0bc1-4085-a1ce-5ee8d721f989.jsonl",
+    "fromLine": 66,
+    "byModel": [
+      {
+        "model": "claude-opus-5",
+        "priced": true,
+        "messages": 12,
+        "tokens": {
+          "input": 24,
+          "cacheWrite5m": 0,
+          "cacheWrite1h": 86047,
+          "cacheRead": 1218123,
+          "output": 33284,
+          "total": 1337478
+        },
+        "rates": {
+          "input": 5.0,
+          "cacheWrite5m": 6.25,
+          "cacheWrite1h": 10.0,
+          "cacheRead": 0.5,
+          "output": 25.0
+        },
+        "costUSD": {
+          "input": 0.00012,
+          "cacheWrite5m": 0.0,
+          "cacheWrite1h": 0.86047,
+          "cacheRead": 0.609062,
+          "output": 0.8321,
+          "total": 2.301751
+        }
+      }
+    ],
+    "totals": {
+      "totalTokens": 1337478,
+      "totalCostUSD": 2.3018
+    },
+    "unpricedModels": 0,
+    "pricingVersion": "2026-06-24",
+    "note": "Measured from the session transcript. Assistant messages are deduplicated by message id. Dollar figures use the list rates in assets/pricing.json and exclude any enterprise discount, Batch API discount or partner-platform pricing."
+  },
+  "limitations": [
+    "Remediation guidance was intentionally not produced for this codebase; this report is a diagnostic baseline only. The legacy system is being replaced, and a fix plan for it would be work nobody intends to do. Remediation for the equivalent issues appears in the Modernized report.",
+    "Static analysis only. Nothing was compiled, deployed or executed. No Informix runtime, 4GL compiler or stores7 database instance was available, so no finding was demonstrated against a running system.",
+    "The SQL injection assessment (L-5) is rated Likely rather than Confirmed for that reason specifically: CONSTRUCT-generated predicates could not be exercised against a live 4GL runtime to establish whether the runtime's own quoting can be defeated.",
+    "Dependency advisories were NOT verified against a live vulnerability database. L-7 establishes that the runtime and system libraries are unsupported and long past end of life; it does not enumerate the CVEs that affect them. No advisory MCP server was configured and no network calls were made during this run.",
+    "Seven files were skipped as compiled binaries: d4_load (ELF executable), demo4.4ge (4GL p-code), helpdemo and custhelp.ex (compiled help), and the .frm form binaries, which were read via their .per sources instead. d4_load's dynamic symbol table was inspected for the dependency check but its machine code was not analysed.",
+    "Cross-Site Scripting was not assessed and is excluded from the score rather than marked clean. The application is a character-terminal program with no HTML, browser or markup rendering path, so the category does not apply.",
+    "Infrastructure, network policy, filesystem permissions, Informix server configuration, database-level GRANTs and the deployed environment were out of scope. Only files under the target path were examined. Database-level privileges in particular could restrict operations that the application code itself does not - that possibility is not assessed here, and it would not change L-3 or L-4, which concern the application's own enforcement.",
+    "Business-logic correctness was assessed only where intent was inferable from the code and its comments."
+  ]
+}
+</script>
+
+<div id="root"></div>
+
+<script>
+/* ============================================================================
+   Renderer. Reads the JSON block above and builds the report.
+   Authoring rule: the audit writes DATA, never markup. Everything below is
+   generic - it never needs to change per project.
+   ========================================================================= */
+(function () {
+  "use strict";
+
+  var DATA;
+  try {
+    DATA = JSON.parse(document.getElementById("audit-data").textContent);
+  } catch (err) {
+    document.getElementById("root").innerHTML =
+      '<div class="wrap"><div class="card" style="margin-top:40px">' +
+      '<h3>This report could not be rendered</h3>' +
+      '<p>The embedded findings JSON is not valid: <code></code></p>' +
+      '<p style="color:var(--text-muted)">Re-run the audit, or validate ' +
+      '<code>.security-audit/findings.json</code> before concatenating the report.</p>' +
+      '</div></div>';
+    document.querySelector("#root code").textContent = err.message;
+    return;
+  }
+
+  /* ---------------------------------------------------------------- utils */
+  var SEVS = ["Critical", "High", "Medium", "Low", "Info"];
+  var SEV_RANK = { Critical: 0, High: 1, Medium: 2, Low: 3, Info: 4 };
+
+  function esc(s) {
+    if (s === null || s === undefined) return "";
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+  function el(html) { var t = document.createElement("template"); t.innerHTML = html.trim(); return t.content; }
+  function arr(x) { return Array.isArray(x) ? x : []; }
+  function has(x) { return x !== null && x !== undefined && x !== ""; }
+  function num(n, d) { return (typeof n === "number" && isFinite(n)) ? n.toLocaleString(undefined, { maximumFractionDigits: d === undefined ? 0 : d }) : "-"; }
+  function money(n) {
+    if (typeof n !== "number" || !isFinite(n)) return "-";
+    if (n > 0 && n < 0.01) return "&lt;$0.01";   /* inserted as HTML - must be an entity */
+    return "$" + n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  var meta     = DATA.meta || {};
+  var scores   = DATA.scores || {};
+  var findings = arr(DATA.findings).slice().sort(function (a, b) {
+    var d = (SEV_RANK[a.severity] === undefined ? 9 : SEV_RANK[a.severity]) -
+            (SEV_RANK[b.severity] === undefined ? 9 : SEV_RANK[b.severity]);
+    return d !== 0 ? d : String(a.id).localeCompare(String(b.id), undefined, { numeric: true });
+  });
+  var hasProjected = !!(scores.projected && has(scores.projected.score));
+
+  var out = [];
+
+  /* ---------------------------------------------------------------- header */
+  var variant = has(meta.variantLabel) ? meta.variantLabel
+              : (has(meta.variant) && meta.variant !== "standalone" ? meta.variant : null);
+  var title = (meta.projectName || "Untitled project")
+            + (variant ? " (" + variant + ")" : "")
+            + " - Security analysis report";
+  document.title = title;
+
+  out.push(
+    '<header class="masthead"><div class="wrap">' +
+      '<button class="theme-toggle no-print" id="themeBtn" type="button">Theme</button>' +
+      '<h1>' + esc(title) + '</h1>' +
+      '<p class="sub">' + (arr(meta.standards).map(esc).join(" &middot; ") || "Static application security review") + '</p>' +
+      '<dl class="meta-grid">' +
+        (variant ? kv("Codebase", esc(variant)) : "") +
+        kv("Target path", meta.targetPath) +
+        kv("Date", meta.scanDate) +
+        kv("Analyst", meta.analyst) +
+        kv("Depth", meta.depth) +
+        kv("Stack", [arr(meta.stack && meta.stack.languages).join(", "),
+                     arr(meta.stack && meta.stack.frameworks).join(", ")].filter(Boolean).join(" / ")) +
+        kv("Scope", meta.inventory
+            ? num(meta.inventory.filesScanned) + " files scanned"
+              + (has(meta.inventory.linesScanned) ? ", " + num(meta.inventory.linesScanned) + " lines" : "")
+              + (has(meta.inventory.filesSkipped) ? " (" + num(meta.inventory.filesSkipped) + " skipped)" : "")
+            : null) +
+        (meta.migration && meta.migration.isMigration
+          ? kv("Migration", esc(meta.migration.sourceLanguage || "?") + " &rarr; " + esc(meta.migration.targetLanguage || "?"))
+          : "") +
+      '</dl>' +
+    '</div></header>'
+  );
+
+  function kv(k, v) {
+    if (!has(v)) return "";
+    return "<div><dt>" + esc(k) + "</dt><dd>" + v + "</dd></div>";
+  }
+
+  out.push('<div class="wrap">');
+
+  /* ---------------------------------------------------------------- 1. scores */
+  out.push('<section id="dashboard"><h2>Score dashboard</h2><div class="score-row">');
+  out.push(scoreTile("Current", scores.current));
+  if (hasProjected) {
+    out.push(scoreTile("Projected after remediation", scores.projected));
+    var up = (scores.projected.score || 0) - ((scores.current && scores.current.score) || 0);
+    out.push(
+      '<div class="tile"><div class="label">Uplift</div>' +
+      '<div class="hero"><span class="uplift">' + (up >= 0 ? "+" : "") + up + '</span></div>' +
+      '<div class="foot">points, if the full plan is applied and verified</div></div>'
+    );
+  }
+  out.push('</div>');
+
+  var counts = {};
+  SEVS.forEach(function (s) { counts[s] = 0; });
+  findings.forEach(function (f) { if (counts[f.severity] !== undefined) counts[f.severity]++; });
+  out.push('<div class="sev-row">');
+  SEVS.forEach(function (s) {
+    out.push(
+      '<div class="sev-tile" data-sev="' + s + '">' +
+        '<div class="n">' + counts[s] + '</div>' +
+        '<div class="k">' + sevIcon(s) + esc(s) + '</div>' +
+      '</div>'
+    );
+  });
+  out.push('</div></section>');
+
+  function scoreTile(label, s) {
+    if (!s) return "";
+    return '<div class="tile">' +
+      '<div class="label">' + esc(label) + '</div>' +
+      '<div class="hero">' + esc(String(s.score)) + '<span class="of"> / 100</span></div>' +
+      '<div class="foot">' +
+        (has(s.grade) ? '<span class="grade">' + esc(s.grade) + '</span>' : '') +
+        (has(s.posture) ? '<span class="posture" data-band="' + esc(s.posture) + '"><span class="dot"></span>' + esc(s.posture) + '</span>' : '') +
+      '</div></div>';
+  }
+  /* Status colour never carries meaning alone - every severity ships an icon + label. */
+  function sevIcon(s) {
+    var g = { Critical: "&#9679;", High: "&#9650;", Medium: "&#9632;", Low: "&#9670;", Info: "&#9675;" };
+    return '<span aria-hidden="true" style="color:' + sevVar(s) + '">' + (g[s] || "&#9675;") + '</span>';
+  }
+  function sevVar(s) {
+    return { Critical: "var(--st-critical)", High: "var(--st-serious)", Medium: "var(--st-warning)",
+             Low: "var(--series-1)", Info: "var(--text-muted)" }[s] || "var(--text-muted)";
+  }
+
+  /* ---------------------------------------------------------------- 2. categories */
+  var cats = arr(scores.categories);
+  if (cats.length) {
+    out.push('<section id="categories"><h2>Category breakdown</h2><div class="card">');
+    out.push(
+      '<div class="legend">' +
+        '<span class="key"><span class="swatch" style="background:var(--series-1)"></span>Current</span>' +
+        (hasProjected ? '<span class="key"><span class="swatch" style="background:var(--series-2)"></span>Projected</span>' : '') +
+        '<span class="key" style="color:var(--text-muted)">Scored 0-100 within each category; weight sets its share of the overall score.</span>' +
+      '</div>'
+    );
+    out.push('<div class="bars">');
+    cats.forEach(function (c) {
+      var assessed = c.assessed !== false && has(c.current);
+      out.push(
+        '<div class="bar-row' + (assessed ? '' : ' na') + '">' +
+          '<div class="cat">' + esc(c.name || c.key) +
+            '<span class="wt">' + esc(c.owasp || "") + (has(c.weight) ? " &middot; weight " + c.weight : "") + '</span>' +
+          '</div>' +
+          '<div class="bar-stack">' +
+            (assessed
+              ? bar("s1", c.current, "Current " + c.current + "/100") +
+                (hasProjected && has(c.projected) ? bar("s2", c.projected, "Projected " + c.projected + "/100") : "")
+              : '<div class="bar-track"></div><div class="bar-na">Not assessed</div>') +
+          '</div>' +
+        '</div>'
+      );
+    });
+    out.push('</div>');
+
+    /* Table view - required relief for sub-3:1 marks, and the print-friendly form. */
+    out.push('<div class="table-scroll" style="margin-top:22px"><table><thead><tr>' +
+      '<th>Category</th><th>OWASP</th><th class="num">Weight</th><th class="num">Current</th>' +
+      (hasProjected ? '<th class="num">Projected</th>' : '') + '<th>Note</th></tr></thead><tbody>');
+    cats.forEach(function (c) {
+      out.push('<tr><td>' + esc(c.name || c.key) + '</td><td>' + esc(c.owasp || "") + '</td>' +
+        '<td class="num">' + (has(c.weight) ? c.weight : "-") + '</td>' +
+        '<td class="num">' + (has(c.current) ? c.current : "n/a") + '</td>' +
+        (hasProjected ? '<td class="num">' + (has(c.projected) ? c.projected : "n/a") + '</td>' : '') +
+        '<td>' + esc(c.note || "") + '</td></tr>');
+    });
+    out.push('</tbody></table></div>');
+    if (has(scores.profile)) {
+      out.push('<p style="margin:14px 0 0;font-size:12.5px;color:var(--text-muted)">Weighting profile: <code>' +
+        esc(scores.profile) + '</code>. Categories marked <em>not assessed</em> are excluded from the weighted average and their weight is redistributed.</p>');
+    }
+    out.push('</div></section>');
+  }
+
+  /* Value sits in its own column, so a 95-wide bar cannot push its label off the row. */
+  function bar(cls, v, tip) {
+    var w = Math.max(0, Math.min(100, Number(v) || 0));
+    return '<div class="bar-line" title="' + esc(tip) + '">' +
+             '<div class="bar-track">' +
+               '<div class="bar-fill ' + cls + '" style="width:' + w + '%"></div>' +
+             '</div>' +
+             '<div class="bar-val">' + esc(String(v)) + '</div>' +
+           '</div>';
+  }
+
+  /* ---------------------------------------------------------------- 3. strengths */
+  var strengths = arr(DATA.strengths);
+  if (strengths.length) {
+    out.push('<section id="strengths"><h2>Controls verified present</h2><div class="card"><ul class="plain">');
+    strengths.forEach(function (s) {
+      out.push('<li><strong>' + esc(s.title) + '</strong>' + (has(s.detail) ? " &mdash; " + esc(s.detail) : "") + '</li>');
+    });
+    out.push('</ul><p style="margin:12px 0 0;font-size:12.5px;color:var(--text-muted)">' +
+      'These are what the category scores are built on, and what remediation must not regress.</p></div></section>');
+  }
+
+  /* ---------------------------------------------------------------- 4. findings table */
+  out.push('<section id="summary"><h2>Findings summary</h2>');
+  if (!findings.length) {
+    out.push('<div class="card"><p class="empty">No findings were recorded for this run. Check the Limitations section for what was and was not assessed.</p></div>');
+  } else {
+    out.push('<div class="card"><div class="table-scroll"><table><thead><tr>' +
+      '<th class="id">#</th><th>Finding</th><th>Severity</th><th>Conf.</th><th>OWASP</th><th>Location</th>' +
+      '<th class="ctr">Found</th><th class="ctr">Fixed</th></tr></thead><tbody>');
+    findings.forEach(function (f) {
+      var loc = arr(f.locations)[0];
+      var more = arr(f.locations).length - 1;
+      out.push('<tr>' +
+        '<td class="id"><a href="#' + esc(f.id) + '" style="font-family:var(--mono);font-size:12px">' + esc(f.id) + '</a></td>' +
+        '<td>' + esc(f.title) + '</td>' +
+        '<td><span class="sev-pill" data-sev="' + esc(f.severity) + '">' + sevIcon(f.severity) + esc(f.severity) + '</span></td>' +
+        '<td><span class="conf" data-c="' + esc(f.confidence) + '">' + esc(f.confidence || "-") + '</span></td>' +
+        '<td>' + esc((f.owasp || "").split(" ")[0]) + '</td>' +
+        '<td style="font-family:var(--mono);font-size:11.5px">' +
+          (loc ? esc(loc.file) + (has(loc.line) ? ":" + loc.line : "") : "-") +
+          (more > 0 ? ' <span style="color:var(--text-muted)">+' + more + '</span>' : '') + '</td>' +
+        '<td class="ctr">' + (f.discovered === false ? "" : "&#10003;") + '</td>' +
+        '<td class="ctr"><input class="chk" type="checkbox" data-fid="' + esc(f.id) + '"' + (f.remediated ? " checked" : "") + ' aria-label="Mark ' + esc(f.id) + ' remediated"></td>' +
+      '</tr>');
+    });
+    out.push('</tbody></table></div>' +
+      '<p style="margin:12px 0 0;font-size:12.5px;color:var(--text-muted)">' +
+      'The <strong>Fixed</strong> column is a working checklist &mdash; tick items as they land. ' +
+      'Your ticks are stored in this browser only; re-run the audit to produce a verified post-remediation score.</p></div>');
+  }
+  out.push('</section>');
+
+  /* ---------------------------------------------------------------- 5. detail */
+  if (findings.length) {
+    out.push('<section id="detail"><h2>Detailed findings</h2>');
+    out.push(
+      '<div class="toolbar no-print">' +
+        '<input type="search" id="q" placeholder="Search findings, files, CWE...">' +
+        SEVS.map(function (s) { return '<button class="chip" type="button" data-sev="' + s + '" aria-pressed="false">' + s + '</button>'; }).join("") +
+        '<button class="btn" id="expandAll" type="button">Expand all</button>' +
+        '<button class="btn" id="copyList" type="button">Copy checklist</button>' +
+        '<span class="count-note" id="countNote"></span>' +
+      '</div>'
+    );
+    out.push('<div id="findingList">');
+    findings.forEach(function (f) { out.push(findingCard(f)); });
+    out.push('</div></section>');
+  }
+
+  function findingCard(f) {
+    var r = f.remediation || {};
+    var s = [];
+    s.push('<details class="finding' + (f.remediated ? " done" : "") + '" id="' + esc(f.id) + '" data-sev="' + esc(f.severity) + '"' +
+           ' data-blob="' + esc([f.id, f.title, f.evidence, f.risk, arr(f.cwe).join(" "),
+                                 arr(f.locations).map(function (l) { return l.file; }).join(" "),
+                                 f.owasp, f.category].filter(Boolean).join(" ").toLowerCase()) + '">');
+    s.push('<summary>' +
+      '<span class="fid">' + esc(f.id) + '</span>' +
+      '<span class="sev-pill" data-sev="' + esc(f.severity) + '">' + sevIcon(f.severity) + esc(f.severity) + '</span>' +
+      '<span><span class="ftitle">' + esc(f.title) + '</span>' +
+        '<span class="fmeta">' + esc(f.owasp || "") +
+          (has(f.confidence) ? " &middot; " + esc(f.confidence) : "") +
+          (has(f.origin) ? " &middot; " + esc(f.origin) : "") +
+          (has(f.exposure) ? " &middot; " + esc(f.exposure) : "") +
+        '</span></span>' +
+      '<span class="chev">&#9654;</span>' +
+      '</summary>');
+
+    s.push('<div class="fbody">');
+
+    /* identifiers */
+    var tags = [];
+    arr(f.cwe).forEach(function (c) { tags.push('<span class="tag">' + esc(c) + '</span>'); });
+    arr(f.attack).forEach(function (a) { tags.push('<span class="tag">ATT&amp;CK ' + esc(a.id) + (has(a.name) ? " " + esc(a.name) : "") + '</span>'); });
+    if (f.nist) {
+      arr(f.nist.ssdf).forEach(function (n) { tags.push('<span class="tag">SSDF ' + esc(n) + '</span>'); });
+      arr(f.nist.sp80053).forEach(function (n) { tags.push('<span class="tag">800-53 ' + esc(n) + '</span>'); });
+    }
+    if (has(f.owaspCurrent)) tags.push('<span class="tag">' + esc(f.owaspCurrent) + '</span>');
+    if (tags.length) s.push('<div class="fblock"><div class="h">Standards</div>' + tags.join("") + '</div>');
+
+    if (has(f.risk))     s.push('<div class="fblock"><div class="h">Risk</div><p style="margin:0">' + esc(f.risk) + '</p></div>');
+    if (has(f.evidence)) s.push('<div class="fblock"><div class="h">Evidence</div><p style="margin:0">' + esc(f.evidence) + '</p></div>');
+
+    var locs = arr(f.locations);
+    if (locs.length) {
+      s.push('<div class="fblock"><div class="h">Location' + (locs.length > 1 ? "s (" + locs.length + ")" : "") + '</div>');
+      locs.forEach(function (l) {
+        s.push('<div class="loc"><span class="path">' + esc(l.file) + '</span>' +
+               (has(l.line) ? '<span style="color:var(--text-muted)">:' + esc(l.line) + '</span>' : '') +
+               (has(l.excerpt) ? '<span class="code">' + esc(l.excerpt) + '</span>' : '') + '</div>');
+      });
+      s.push('</div>');
+    }
+
+    if (f.impact) {
+      s.push('<div class="fblock"><div class="h">Impact</div><div class="kv">' +
+        ["confidentiality", "integrity", "availability"].map(function (k) {
+          return has(f.impact[k]) ? '<div><div class="k">' + k + '</div>' + esc(f.impact[k]) + '</div>' : "";
+        }).join("") + '</div></div>');
+    }
+
+    /* remediation */
+    if (r && (has(r.summary) || arr(r.steps).length)) {
+      s.push('<div class="fblock"><div class="h">Remediation' +
+        (r.breakingChange ? ' <span class="badge-br">Breaking change</span>'
+                          : (r.nonBreaking ? ' <span class="badge-nb">Non-breaking</span>' : '')) +
+        (has(r.effort) ? ' <span class="tag">Effort ' + esc(r.effort) + '</span>' : '') +
+        '</div>');
+      if (r.breakingChange) {
+        s.push('<div class="warnbox" style="margin-bottom:10px"><strong>This fix changes behaviour.</strong> ' +
+               'Schedule it deliberately &mdash; it is not a drop-in change.</div>');
+      }
+      if (has(r.summary)) s.push('<p style="margin:0 0 10px">' + esc(r.summary) + '</p>');
+      if (arr(r.steps).length) {
+        s.push('<ol class="steps">' + arr(r.steps).map(function (x) { return "<li>" + esc(x) + "</li>"; }).join("") + '</ol>');
+      }
+      if (has(r.codeBefore) || has(r.codeAfter)) {
+        s.push('<div class="diff" style="margin-top:12px">' +
+          (has(r.codeBefore) ? '<div class="before"><div class="lbl">Before</div><pre class="code">' + esc(r.codeBefore) + '</pre></div>' : '') +
+          (has(r.codeAfter)  ? '<div class="after"><div class="lbl">After</div><pre class="code">'  + esc(r.codeAfter)  + '</pre></div>' : '') +
+        '</div>');
+      }
+      s.push('</div>');
+    }
+
+    if (has(f.verification)) {
+      s.push('<div class="fblock"><div class="h">Verification</div><div class="verify">' + esc(f.verification) + '</div></div>');
+    }
+
+    var refs = arr(f.references);
+    if (refs.length) {
+      s.push('<div class="fblock"><div class="h">References</div><ul class="plain">' +
+        refs.map(function (x) {
+          return "<li>" + (has(x.url) ? '<a href="' + esc(x.url) + '" rel="noreferrer noopener">' + esc(x.label || x.url) + "</a>"
+                                      : esc(x.label || "")) + "</li>";
+        }).join("") + '</ul></div>');
+    }
+
+    s.push('</div></details>');
+    return s.join("");
+  }
+
+  /* ---------------------------------------------------------------- 6. roadmap */
+  var roadmap = arr(DATA.roadmap);
+  if (roadmap.length) {
+    out.push('<section id="roadmap"><h2>Remediation roadmap</h2><div class="card">');
+    roadmap.forEach(function (p) {
+      out.push('<div class="phase">' +
+        '<div class="pnum">' + esc(p.phase) + '</div>' +
+        '<div><h3 style="font-size:15px;margin:0 0 4px">' + esc(p.name) + '</h3>' +
+          '<div style="font-size:12.5px;color:var(--text-muted)">' +
+            arr(p.findings).map(function (id) { return '<a href="#' + esc(id) + '" class="tag">' + esc(id) + '</a>'; }).join("") +
+            (has(p.effort) ? ' <span class="tag">Effort ' + esc(p.effort) + '</span>' : '') +
+          '</div>' +
+          (has(p.rationale) ? '<p style="margin:8px 0 0;font-size:13.5px">' + esc(p.rationale) + '</p>' : '') +
+        '</div>' +
+        (has(p.scoreAfter) ? '<div class="pafter">&rarr; ' + esc(p.scoreAfter) + ' / 100</div>' : '<div></div>') +
+      '</div>');
+    });
+    out.push('</div></section>');
+  }
+
+  /* ---------------------------------------------------------------- 7. cost */
+  var cost = DATA.cost;
+  if (cost) {
+    out.push('<section id="cost"><h2>Analysis cost</h2><div class="card">');
+    if (cost.source === "estimate") {
+      out.push('<div class="cost-caveat"><strong>Estimated, not measured.</strong> ' +
+        'Usage records were unavailable for this run, so the figures below are an approximation and should not be used for billing reconciliation.</div>');
+    } else if (cost.source === "unavailable") {
+      out.push('<p class="empty">Cost was not collected for this run.</p>');
+    }
+
+    if (cost.source !== "unavailable" && arr(cost.byModel).length) {
+      out.push('<div class="table-scroll"><table><thead><tr>' +
+        '<th>Model</th><th class="num">Msgs</th><th class="num">Input</th><th class="num">Cache write</th>' +
+        '<th class="num">Cache read</th><th class="num">Output</th><th class="num">Total tokens</th><th class="num">Cost</th>' +
+        '</tr></thead><tbody>');
+      arr(cost.byModel).forEach(function (m) {
+        var t = m.tokens || {};
+        var cw = (t.cacheWrite5m || 0) + (t.cacheWrite1h || 0);
+        out.push('<tr>' +
+          '<td style="font-family:var(--mono);font-size:12px">' + esc(m.model) +
+            (m.priced === false ? ' <span class="tag">unpriced</span>' : '') + '</td>' +
+          '<td class="num">' + num(m.messages) + '</td>' +
+          '<td class="num">' + num(t.input) + '</td>' +
+          '<td class="num">' + num(cw) + '</td>' +
+          '<td class="num">' + num(t.cacheRead) + '</td>' +
+          '<td class="num">' + num(t.output) + '</td>' +
+          '<td class="num">' + num(t.total) + '</td>' +
+          '<td class="num">' + (m.costUSD ? money(m.costUSD.total) : "-") + '</td>' +
+        '</tr>');
+      });
+      out.push('</tbody></table></div>');
+
+      var tot = cost.totals || {};
+      out.push('<div class="cost-total">' +
+        '<div><div class="label" style="font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted)">Total tokens</div>' +
+          '<div class="big">' + num(tot.totalTokens) + '</div></div>' +
+        '<div><div class="label" style="font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted)">Estimated cost</div>' +
+          '<div class="big">' + money(tot.totalCostUSD) + '</div></div>' +
+        (has(cost.startedAt) && has(cost.finishedAt)
+          ? '<div><div class="label" style="font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted)">Window</div>' +
+            '<div style="font-size:13px;color:var(--text-secondary);padding-top:8px">' + esc(cost.startedAt) + ' &rarr; ' + esc(cost.finishedAt) + '</div></div>'
+          : '') +
+      '</div>');
+
+      out.push('<p style="margin:14px 0 0;font-size:12.5px;color:var(--text-muted)">' +
+        (has(cost.note) ? esc(cost.note) + " " : "") +
+        (cost.unpricedModels ? '<strong>' + cost.unpricedModels + ' model(s) had no published rate and are excluded from the dollar total.</strong> ' : '') +
+        'Cache reads are billed well below input rate, which is why total tokens and total cost do not move together.' +
+        '</p>');
+    }
+    out.push('</div></section>');
+  }
+
+  /* ---------------------------------------------------------------- 8. evidence */
+  var ev = arr(DATA.evidenceLog);
+  if (ev.length) {
+    out.push('<section id="evidence"><h2>Scan evidence</h2><div class="card">' +
+      '<p style="font-size:13px;color:var(--text-secondary);margin-top:0">' +
+      'What was checked, so that "no finding" can be told apart from "not checked".</p>' +
+      '<div class="table-scroll"><table><thead><tr><th>Check</th><th>Rule</th><th>Query</th><th>Result</th><th>Conclusion</th></tr></thead><tbody>');
+    ev.forEach(function (e) {
+      out.push('<tr><td>' + esc(e.check) + '</td>' +
+        '<td style="font-family:var(--mono);font-size:11.5px">' + esc(e.ruleId || "") + '</td>' +
+        '<td style="font-family:var(--mono);font-size:11.5px">' + esc(e.query || "") + '</td>' +
+        '<td>' + esc(e.result || "") + '</td><td>' + esc(e.conclusion || "") + '</td></tr>');
+    });
+    out.push('</tbody></table></div></div></section>');
+  }
+
+  /* ---------------------------------------------------------------- 9. limitations */
+  var lim = arr(DATA.limitations);
+  if (lim.length) {
+    out.push('<section id="limitations"><h2>Limitations &amp; scope</h2><div class="card"><ul class="plain">' +
+      lim.map(function (l) { return "<li>" + esc(l) + "</li>"; }).join("") +
+      '</ul></div></section>');
+  }
+
+  out.push('<footer class="foot">' +
+    esc(title) + (has(meta.scanDate) ? " &middot; " + esc(meta.scanDate) : "") +
+    ' &middot; Generated by the <code>security-audit</code> skill. ' +
+    'Static analysis findings require human confirmation before they are treated as accepted risk or closed.' +
+    '</footer>');
+
+  out.push('</div>');
+  document.getElementById("root").innerHTML = out.join("");
+
+  /* ---------------------------------------------------------------- behaviour */
+  var store = {
+    get: function (k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+    set: function (k, v) { try { localStorage.setItem(k, v); } catch (e) { /* file:// or blocked - fine */ } }
+  };
+
+  /* theme toggle - wins over the OS setting in both directions */
+  var btn = document.getElementById("themeBtn");
+  var saved = store.get("sa-theme");
+  if (saved) document.documentElement.setAttribute("data-theme", saved);
+  if (btn) btn.addEventListener("click", function () {
+    var cur = document.documentElement.getAttribute("data-theme");
+    if (!cur) cur = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    var next = cur === "dark" ? "light" : "dark";
+    document.documentElement.setAttribute("data-theme", next);
+    store.set("sa-theme", next);
+  });
+
+  /* remediated checkboxes */
+  var key = "sa-fixed:" + (meta.projectName || "") + ":" + (meta.scanDate || "");
+  var fixed = {};
+  try { fixed = JSON.parse(store.get(key) || "{}"); } catch (e) { fixed = {}; }
+  document.querySelectorAll(".chk").forEach(function (cb) {
+    var id = cb.getAttribute("data-fid");
+    if (fixed[id]) cb.checked = true;
+    applyFixed(id, cb.checked);
+    cb.addEventListener("change", function () {
+      fixed[id] = cb.checked;
+      store.set(key, JSON.stringify(fixed));
+      applyFixed(id, cb.checked);
+    });
+  });
+  function applyFixed(id, on) {
+    var card = document.getElementById(id);
+    if (card) card.classList.toggle("done", !!on);
+  }
+
+  /* filters */
+  var q = document.getElementById("q");
+  var chips = Array.prototype.slice.call(document.querySelectorAll(".chip[data-sev]"));
+  var cards = Array.prototype.slice.call(document.querySelectorAll(".finding"));
+  var note = document.getElementById("countNote");
+
+  function applyFilter() {
+    var term = (q && q.value || "").trim().toLowerCase();
+    var on = chips.filter(function (c) { return c.getAttribute("aria-pressed") === "true"; })
+                  .map(function (c) { return c.getAttribute("data-sev"); });
+    var shown = 0;
+    cards.forEach(function (card) {
+      var okSev = !on.length || on.indexOf(card.getAttribute("data-sev")) !== -1;
+      var okTxt = !term || (card.getAttribute("data-blob") || "").indexOf(term) !== -1;
+      var vis = okSev && okTxt;
+      card.hidden = !vis;
+      if (vis) shown++;
+    });
+    if (note) note.textContent = shown + " of " + cards.length + " shown";
+  }
+  chips.forEach(function (c) {
+    c.addEventListener("click", function () {
+      c.setAttribute("aria-pressed", c.getAttribute("aria-pressed") === "true" ? "false" : "true");
+      applyFilter();
+    });
+  });
+  if (q) q.addEventListener("input", applyFilter);
+  applyFilter();
+
+  var exp = document.getElementById("expandAll");
+  if (exp) exp.addEventListener("click", function () {
+    var anyClosed = cards.some(function (c) { return !c.open && !c.hidden; });
+    cards.forEach(function (c) { if (!c.hidden) c.open = anyClosed; });
+    exp.textContent = anyClosed ? "Collapse all" : "Expand all";
+  });
+
+  /* copy checklist as markdown */
+  var copy = document.getElementById("copyList");
+  if (copy) copy.addEventListener("click", function () {
+    var lines = ["# " + title, ""];
+    findings.forEach(function (f) {
+      var cb = document.querySelector('.chk[data-fid="' + f.id + '"]');
+      var done = cb && cb.checked;
+      var loc = arr(f.locations)[0];
+      lines.push("- [" + (done ? "x" : " ") + "] **" + f.id + "** (" + f.severity + ", " + (f.owasp || "") + ") " +
+                 f.title + (loc ? "  \n      " + loc.file + (has(loc.line) ? ":" + loc.line : "") : ""));
+    });
+    var text = lines.join("\n");
+    function fallback() {
+      var ta = document.createElement("textarea");
+      ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta); ta.select();
+      try { document.execCommand("copy"); } catch (e) {}
+      document.body.removeChild(ta);
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, function () { fallback(); done(); });
+    } else { fallback(); done(); }
+    function done() {
+      copy.textContent = "Copied";
+      setTimeout(function () { copy.textContent = "Copy checklist"; }, 1600);
+    }
+  });
+
+  /* expand a finding when linked to directly */
+  window.addEventListener("hashchange", openHash);
+  openHash();
+  function openHash() {
+    var h = location.hash.slice(1);
+    if (!h) return;
+    var t = document.getElementById(h);
+    if (t && t.tagName === "DETAILS") { t.hidden = false; t.open = true; t.scrollIntoView({ block: "start" }); }
+  }
+
+  /* print: expand everything so nothing is hidden in the PDF */
+  window.addEventListener("beforeprint", function () {
+    cards.forEach(function (c) { c.open = true; });
+  });
+})();
+</script>
+</body>
+</html>

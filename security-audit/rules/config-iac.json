@@ -1,0 +1,146 @@
+{
+  "pack": "config-iac",
+  "appliesTo": ["*"],
+  "rules": [
+    {
+      "id": "CFG-DKR-01",
+      "title": "Container runs as root",
+      "pattern": "^\\s*USER\\s+root|^\\s*USER\\s+0\\b",
+      "glob": "**/Dockerfile*",
+      "severity": "Medium",
+      "owasp": "A05:2021",
+      "cwe": ["CWE-250"],
+      "attack": ["T1611"],
+      "why": "A root process in a container turns any code-execution flaw into full container control and widens the blast radius of a runtime escape.",
+      "falsePositiveHints": "A USER root during a build stage followed by a non-root USER for runtime is fine. Check the final stage."
+    },
+    {
+      "id": "CFG-DKR-02",
+      "title": "No non-root USER declared in the Dockerfile",
+      "pattern": "^\\s*USER\\s+",
+      "glob": "**/Dockerfile*",
+      "expect": "present-required",
+      "severity": "Medium",
+      "owasp": "A05:2021",
+      "cwe": ["CWE-250"],
+      "why": "Without a USER instruction the container runs as root by default.",
+      "falsePositiveHints": "Some base images already set a non-root user. Check the FROM image before reporting."
+    },
+    {
+      "id": "CFG-DKR-03",
+      "title": "Unpinned base image or build secret in a layer",
+      "pattern": "^\\s*FROM\\s+[^\\s]+:latest|^\\s*FROM\\s+[a-zA-Z0-9._/-]+\\s*$|^\\s*(ENV|ARG)\\s+[A-Z_]*(PASSWORD|SECRET|TOKEN|KEY)[A-Z_]*\\s*=",
+      "glob": "**/Dockerfile*",
+      "severity": "Medium",
+      "owasp": "A08:2021",
+      "cwe": ["CWE-1104", "CWE-798"],
+      "why": "An unpinned base image makes builds non-reproducible and silently pulls new content. A secret in ENV/ARG persists in the image layers and in docker history, even if later removed.",
+      "falsePositiveHints": "Separate the two: unpinned image is A08/Medium; a real secret value in a layer is A02/Critical. Only flag ARG/ENV that carries an actual value, not a name awaiting injection."
+    },
+    {
+      "id": "CFG-K8S-01",
+      "title": "Privileged or over-permissive pod security context",
+      "pattern": "privileged\\s*:\\s*true|allowPrivilegeEscalation\\s*:\\s*true|runAsUser\\s*:\\s*0|hostNetwork\\s*:\\s*true|hostPID\\s*:\\s*true|hostIPC\\s*:\\s*true|readOnlyRootFilesystem\\s*:\\s*false",
+      "glob": "**/*.{yml,yaml}",
+      "severity": "High",
+      "owasp": "A05:2021",
+      "cwe": ["CWE-250"],
+      "attack": ["T1611"],
+      "why": "A privileged container shares the host kernel namespace boundary in name only; escape to the node is straightforward.",
+      "falsePositiveHints": "Genuine infrastructure DaemonSets (CNI, storage, monitoring agents) may legitimately require this. Judge by workload type."
+    },
+    {
+      "id": "CFG-K8S-02",
+      "title": "Kubernetes Secret with an inline value",
+      "pattern": "kind:\\s*Secret[\\s\\S]{0,400}(data|stringData)\\s*:",
+      "glob": "**/*.{yml,yaml}",
+      "severity": "High",
+      "owasp": "A02:2021",
+      "cwe": ["CWE-798"],
+      "why": "base64 in a Secret manifest is encoding, not encryption. A committed manifest is a committed secret.",
+      "falsePositiveHints": "Sealed Secrets, External Secrets Operator references and SOPS-encrypted files are correct patterns and not findings."
+    },
+    {
+      "id": "CFG-TF-01",
+      "title": "Terraform resource open to the internet or publicly readable",
+      "pattern": "cidr_blocks\\s*=\\s*\\[\\s*\"0\\.0\\.0\\.0/0\"|acl\\s*=\\s*\"public-read|publicly_accessible\\s*=\\s*true|block_public_acls\\s*=\\s*false|storage_encrypted\\s*=\\s*false|enable_key_rotation\\s*=\\s*false",
+      "glob": "**/*.tf",
+      "severity": "High",
+      "owasp": "A05:2021",
+      "cwe": ["CWE-284", "CWE-311"],
+      "attack": ["T1530"],
+      "why": "0.0.0.0/0 ingress and public object ACLs are among the most common causes of real-world data exposure.",
+      "falsePositiveHints": "0.0.0.0/0 on port 443 for a public load balancer is intended. On 22, 3389, or a database port it is a finding. Check the port."
+    },
+    {
+      "id": "CFG-TF-02",
+      "title": "Terraform variable or output holding a secret in plaintext",
+      "pattern": "(?i)(default\\s*=\\s*\"[^\"]{8,}\"[^\\n]*(password|secret|token|key)|sensitive\\s*=\\s*false)",
+      "glob": "**/*.tf",
+      "severity": "High",
+      "owasp": "A02:2021",
+      "cwe": ["CWE-798"],
+      "why": "A default value for a secret ends up in state files and plan output, both of which are frequently stored unencrypted.",
+      "falsePositiveHints": "Verify the variable actually holds a credential rather than a name or ARN."
+    },
+    {
+      "id": "CFG-ENV-01",
+      "title": "Environment file committed to the repository",
+      "pattern": "(?i)^[A-Z0-9_]*(PASSWORD|SECRET|TOKEN|APIKEY|API_KEY|PRIVATE_KEY|CONNECTION_STRING|CLIENT_SECRET)[A-Z0-9_]*\\s*=\\s*\\S{4,}",
+      "glob": "**/{.env,.env.*,*.env}",
+      "severity": "Critical",
+      "owasp": "A02:2021",
+      "cwe": ["CWE-798"],
+      "attack": ["T1552.001"],
+      "why": "A committed .env is a committed credential set, and it stays in git history after deletion.",
+      "falsePositiveHints": ".env.example / .env.template with placeholder values is correct practice. Check whether the value is real. Also check .gitignore - an untracked .env present on disk is a different (and much lower) finding than a tracked one."
+    },
+    {
+      "id": "CFG-CI-01",
+      "title": "CI workflow with a risky trigger or an inline secret",
+      "pattern": "pull_request_target|(?i)(password|token|secret)\\s*:\\s*[\"']?[A-Za-z0-9+/=_-]{16,}|permissions:\\s*write-all|ACTIONS_ALLOW_UNSECURE",
+      "glob": "**/{.github/workflows/*.y*ml,.gitlab-ci.y*ml,azure-pipelines*.y*ml,Jenkinsfile}",
+      "severity": "High",
+      "owasp": "A08:2021",
+      "cwe": ["CWE-798", "CWE-829"],
+      "attack": ["T1195.002"],
+      "why": "pull_request_target runs untrusted fork code with repository secrets in scope - a well-known supply-chain compromise path. Inline secrets in CI config leak to every build log.",
+      "falsePositiveHints": "${{ secrets.NAME }} references are correct and not findings. pull_request_target without a checkout of the PR head is safe; check what the job checks out."
+    },
+    {
+      "id": "CFG-CI-02",
+      "title": "Unpinned third-party CI action or script piped to a shell",
+      "pattern": "uses:\\s*[^@\\n]+@(main|master|v[0-9]+)\\s*$|curl[^\\n|]*\\|\\s*(ba)?sh|wget[^\\n|]*\\|\\s*(ba)?sh",
+      "glob": "**/{.github/workflows/*.y*ml,.gitlab-ci.y*ml,Jenkinsfile,Dockerfile*,**/*.sh}",
+      "severity": "Medium",
+      "owasp": "A08:2021",
+      "cwe": ["CWE-829", "CWE-494"],
+      "attack": ["T1195.002"],
+      "why": "A mutable tag or a curl-to-shell install means the code executed in your pipeline can change without any change to your repository.",
+      "falsePositiveHints": "Actions pinned to a full commit SHA are correct. First-party actions from your own org are lower risk but still mutable."
+    },
+    {
+      "id": "CFG-APP-01",
+      "title": "Application configuration weakening a security control",
+      "pattern": "(?i)(\"?RequireHttps\"?\\s*:\\s*false|\"?DetailedErrors\"?\\s*:\\s*true|customErrors\\s+mode\\s*=\\s*\"Off\"|<compilation[^>]*debug\\s*=\\s*\"true\"|validateRequest\\s*=\\s*\"false\"|requestValidationMode\\s*=\\s*\"2\\.0\"|\"?AllowedHosts\"?\\s*:\\s*\"\\*\")",
+      "glob": "**/{appsettings*.json,web.config,app.config,*.properties}",
+      "severity": "Medium",
+      "owasp": "A05:2021",
+      "cwe": ["CWE-16", "CWE-209"],
+      "why": "Debug compilation, disabled request validation and verbose errors in a deployed configuration each hand an attacker information or remove a control.",
+      "falsePositiveHints": "Check whether the file is a Development-only overlay (appsettings.Development.json) that production never loads."
+    },
+    {
+      "id": "CFG-GIT-01",
+      "title": "Sensitive path not excluded from version control",
+      "pattern": "\\.env|\\*\\.pem|\\*\\.key|secrets|appsettings\\.Production",
+      "glob": "**/.gitignore",
+      "expect": "present-required",
+      "severity": "Low",
+      "owasp": "A05:2021",
+      "cwe": ["CWE-540"],
+      "why": "Without ignore rules, a secret file is one `git add .` away from permanent history.",
+      "falsePositiveHints": "Only relevant if such files actually exist or are likely in this stack. Do not report on a repository with no secret-bearing file types."
+    }
+  ]
+}

@@ -1,0 +1,627 @@
+</script>
+
+<div id="root"></div>
+
+<script>
+/* ============================================================================
+   Migration security comparison - renderer.
+   Reads the JSON block above and builds the report. The comparison writes DATA,
+   never markup: everything below is generic and never changes per project.
+   ========================================================================= */
+(function () {
+  "use strict";
+
+  var DATA;
+  try {
+    DATA = JSON.parse(document.getElementById("compare-data").textContent);
+  } catch (err) {
+    document.getElementById("root").innerHTML =
+      '<div class="wrap"><div class="card" style="margin-top:40px">' +
+      '<h3>This report could not be rendered</h3>' +
+      '<p>The embedded comparison JSON is not valid: <code></code></p>' +
+      '<p style="color:var(--text-muted)">Validate ' +
+      '<code>.security-audit/comparison/comparison.json</code> before concatenating the report.</p>' +
+      '</div></div>';
+    document.querySelector("#root code").textContent = err.message;
+    return;
+  }
+
+  /* ---------------------------------------------------------------- utils */
+  var SEVS = ["Critical", "High", "Medium", "Low", "Info"];
+  var SEV_RANK = { Critical: 0, High: 1, Medium: 2, Low: 3, Info: 4 };
+
+  var BUCKETS = [
+    { key: "introduced",     label: "Introduced",     blurb: "Created by the modernization. Absent from the legacy system." },
+    { key: "inherited",      label: "Inherited",      blurb: "Present before and after. The migration carried the flaw across." },
+    { key: "new-surface",    label: "New surface",    blurb: "New architecture, new exposure. No legacy equivalent could exist." },
+    { key: "resolved",       label: "Resolved",       blurb: "Present in the legacy system, gone in the modernized one." },
+    { key: "not-comparable", label: "Not comparable", blurb: "No counterpart existed to compare against." }
+  ];
+  var BK = {};
+  BUCKETS.forEach(function (b) { BK[b.key] = b; });
+  /* Buckets an engineer still has to act on, in the order they should act. */
+  var ACTIONABLE = ["introduced", "inherited", "new-surface"];
+
+  function esc(s) {
+    if (s === null || s === undefined) return "";
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+  function arr(x) { return Array.isArray(x) ? x : []; }
+  function has(x) { return x !== null && x !== undefined && x !== ""; }
+  function num(n, d) {
+    return (typeof n === "number" && isFinite(n))
+      ? n.toLocaleString(undefined, { maximumFractionDigits: d === undefined ? 0 : d }) : "-";
+  }
+  function money(n) {
+    if (typeof n !== "number" || !isFinite(n)) return "-";
+    return "$" + n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: n < 1 ? 4 : 2 });
+  }
+  function kv(k, v) {
+    if (!has(v)) return "";
+    return "<div><dt>" + esc(k) + "</dt><dd>" + v + "</dd></div>";
+  }
+  function sevIcon(s) {
+    var g = { Critical: "&#9679;", High: "&#9650;", Medium: "&#9632;", Low: "&#9670;", Info: "&#9675;" };
+    return '<span class="sev-pill" data-sev="' + esc(s) + '">' + (g[s] || "&#9675;") + '</span>';
+  }
+  function bkPill(b) {
+    var d = BK[b];
+    return '<span class="bk-pill" data-bucket="' + esc(b) + '"><span class="dot"></span>' +
+           esc(d ? d.label : b) + '</span>';
+  }
+  function deltaSpan(v, betterIsUp) {
+    if (typeof v !== "number" || !isFinite(v)) return '<span class="delta flat">-</span>';
+    var good = (v > 0) === (betterIsUp !== false);
+    var cls = v === 0 ? "flat" : (good ? "up" : "down");
+    return '<span class="delta ' + cls + '">' + (v > 0 ? "+" : "") + num(v, 1) + '</span>';
+  }
+
+  var meta    = DATA.meta || {};
+  var scores  = DATA.scores || {};
+  var legacyS = scores.legacy || null;
+  var modernS = scores.modernized || null;
+
+  var items = arr(DATA.items).slice().sort(function (a, b) {
+    var ai = ACTIONABLE.indexOf(a.bucket), bi = ACTIONABLE.indexOf(b.bucket);
+    if (ai < 0) { ai = 9; }
+    if (bi < 0) { bi = 9; }
+    if (ai !== bi) return ai - bi;
+    var as = SEV_RANK[a.severity], bs = SEV_RANK[b.severity];
+    if (as === undefined) { as = 9; }
+    if (bs === undefined) { bs = 9; }
+    if (as !== bs) return as - bs;
+    return String(a.id).localeCompare(String(b.id), undefined, { numeric: true });
+  });
+
+  var out = [];
+
+  /* ---------------------------------------------------------------- header */
+  var title = (meta.projectName || "Untitled project") + " - Migration security comparison";
+  document.title = title;
+
+  var lg = meta.legacy || {};
+  var md = meta.modernized || {};
+
+  out.push(
+    '<header class="masthead"><div class="wrap">' +
+      '<button class="theme-toggle no-print" id="themeBtn" type="button">Theme</button>' +
+      '<h1>' + esc(title) + '</h1>' +
+      '<p class="sub">' + esc(meta.subtitle ||
+         "Legacy vs Modernized - what the migration fixed, carried across, and created") + '</p>' +
+      '<dl class="meta-grid">' +
+        kv("Legacy", esc(lg.stack || "-") +
+            (has(lg.targetPath) ? '<br><span style="color:var(--text-muted)">' + esc(lg.targetPath) + '</span>' : "")) +
+        kv("Modernized", esc(md.stack || "-") +
+            (has(md.targetPath) ? '<br><span style="color:var(--text-muted)">' + esc(md.targetPath) + '</span>' : "")) +
+        kv("Date", meta.scanDate) +
+        kv("Analyst", meta.analyst) +
+        kv("Depth", meta.depth) +
+        kv("Findings compared", has(meta.comparedCount) ? num(meta.comparedCount) : null) +
+      '</dl>' +
+    '</div></header>'
+  );
+
+  out.push('<div class="wrap">');
+
+  /* ------------------------------------------------------------- 0. verdict */
+  if (has(meta.verdict)) {
+    out.push(
+      '<section id="verdict"><h2>Verdict</h2>' +
+      '<div class="card"><p style="margin:0;font-size:15.5px;line-height:1.65">' +
+      esc(meta.verdict) + '</p></div></section>'
+    );
+  }
+
+  /* ------------------------------------------------------------- 1. scores */
+  function scoreTile(label, s, foot) {
+    if (!s) {
+      return '<div class="tile"><div class="label">' + esc(label) + '</div>' +
+             '<div class="hero" style="color:var(--text-muted)">n/a</div>' +
+             '<div class="foot">Not assessed</div></div>';
+    }
+    return '<div class="tile">' +
+      '<div class="label">' + esc(label) + '</div>' +
+      '<div class="hero">' + esc(String(s.score)) + '<span class="of"> / 100</span></div>' +
+      '<div class="foot">' +
+        (has(s.grade) ? '<span class="grade">' + esc(s.grade) + '</span>' : "") +
+        (has(s.posture) ? '<span class="posture" data-band="' + esc(s.posture) + '"><span class="dot"></span>' +
+                          esc(s.posture) + '</span>' : "") +
+      '</div>' +
+      (has(foot) ? '<div class="foot" style="color:var(--text-muted);font-size:12px">' + esc(foot) + '</div>' : "") +
+      '</div>';
+  }
+
+  out.push('<section id="dashboard"><h2>Security posture, before and after</h2><div class="score-row">');
+  out.push(scoreTile("Legacy", legacyS, "Pre-migration baseline"));
+  out.push(scoreTile("Modernized", modernS, "Post-migration, as audited"));
+  if (legacyS && modernS && typeof legacyS.score === "number" && typeof modernS.score === "number") {
+    var d = modernS.score - legacyS.score;
+    out.push(
+      '<div class="tile"><div class="label">Migration delta</div>' +
+      '<div class="hero">' + deltaSpan(d) + '</div>' +
+      '<div class="foot">points of security posture ' + (d >= 0 ? "gained" : "lost") +
+      ' in the migration</div></div>'
+    );
+  }
+  if (scores.projected && has(scores.projected.score)) {
+    out.push(scoreTile("Projected", scores.projected, "Modernized, after the plan below"));
+  }
+  out.push('</div>');
+  if (has(meta.scoreCaveat)) {
+    out.push('<div class="warnbox" style="margin-top:14px">' + esc(meta.scoreCaveat) + '</div>');
+  }
+  out.push('</section>');
+
+  /* ------------------------------------------------------------ 2. buckets */
+  var counts = {};
+  BUCKETS.forEach(function (b) { counts[b.key] = 0; });
+  items.forEach(function (i) { if (counts[i.bucket] !== undefined) counts[i.bucket]++; });
+
+  out.push('<section id="buckets"><h2>What the migration did to the security posture</h2>');
+  out.push('<div class="bucket-row">');
+  BUCKETS.forEach(function (b) {
+    out.push(
+      '<div class="bk-tile" data-bucket="' + b.key + '">' +
+        '<div class="n">' + counts[b.key] + '</div>' +
+        '<div class="k">' + esc(b.label) + '</div>' +
+        '<div class="d">' + esc(b.blurb) + '</div>' +
+      '</div>'
+    );
+  });
+  out.push('</div>');
+
+  var sevL = {}, sevM = {};
+  SEVS.forEach(function (s) { sevL[s] = 0; sevM[s] = 0; });
+  items.forEach(function (i) {
+    if (i.legacy && sevL[i.legacy.severity] !== undefined) sevL[i.legacy.severity]++;
+    if (i.modernized && sevM[i.modernized.severity] !== undefined) sevM[i.modernized.severity]++;
+  });
+  out.push(
+    '<h3>Findings by severity, on each side</h3>' +
+    '<div class="table-scroll"><table class="cat-delta-table"><thead><tr>' +
+    '<th>Severity</th><th class="num">Legacy</th><th class="num">Modernized</th><th class="num">Change</th>' +
+    '</tr></thead><tbody>' +
+    SEVS.map(function (s) {
+      return '<tr><td>' + sevIcon(s) + ' ' + esc(s) + '</td>' +
+        '<td class="num">' + sevL[s] + '</td>' +
+        '<td class="num">' + sevM[s] + '</td>' +
+        '<td class="num">' + deltaSpan(sevM[s] - sevL[s], false) + '</td></tr>';
+    }).join("") +
+    '</tbody></table></div>' +
+    '<p class="count-note">Counts are of compared findings on each side. A finding present in both ' +
+    'codebases is counted once per side, so the two columns are directly comparable.</p>'
+  );
+  out.push('</section>');
+
+  /* -------------------------------------------------- 3. category compare */
+  var cats = arr(scores.categories).filter(function (c) {
+    return has(c.legacy) || has(c.modernized);
+  });
+  if (cats.length) {
+    out.push('<section id="categories"><h2>Category scores, legacy vs modernized</h2><div class="card">');
+    out.push(
+      '<div class="legend">' +
+        '<span class="key"><span class="swatch" style="background:var(--st-neutral)"></span>Legacy</span>' +
+        '<span class="key"><span class="swatch" style="background:var(--series-1)"></span>Modernized</span>' +
+        '<span class="key" style="color:var(--text-muted)">Scored 0-100 within each category; ' +
+        'weight sets its share of the overall score.</span>' +
+      '</div><div style="margin-top:14px">'
+    );
+    cats.forEach(function (c) {
+      var l = typeof c.legacy === "number" ? c.legacy : null;
+      var m = typeof c.modernized === "number" ? c.modernized : null;
+      out.push(
+        '<div class="cmp-bar-row">' +
+          '<div>' + esc(c.name || c.key) +
+            (has(c.weight) ? ' <span style="color:var(--text-muted);font-size:12px">w' + esc(c.weight) + '</span>' : "") +
+          '</div>' +
+          '<div class="cmp-track">' +
+            (l !== null ? '<div class="cmp-seg lg" style="width:' + Math.max(0, Math.min(100, l)) + '%"></div>' : "") +
+            (m !== null ? '<div class="cmp-seg md" style="width:' + Math.max(0, Math.min(100, m)) + '%"></div>' : "") +
+          '</div>' +
+          '<div class="num" style="text-align:right">' +
+            (l !== null && m !== null ? deltaSpan(m - l) : '<span class="delta flat">-</span>') +
+          '</div>' +
+        '</div>' +
+        (has(c.note) ? '<p class="count-note" style="margin:-4px 0 10px 0">' + esc(c.note) + '</p>' : "")
+      );
+    });
+    out.push('</div>');
+    out.push(
+      '<div class="table-scroll" style="margin-top:18px"><table class="cat-delta-table"><thead><tr>' +
+      '<th>Category</th><th class="num">Weight</th><th class="num">Legacy</th>' +
+      '<th class="num">Modernized</th><th class="num">Change</th>' +
+      '</tr></thead><tbody>' +
+      cats.map(function (c) {
+        var l = typeof c.legacy === "number" ? c.legacy : null;
+        var m = typeof c.modernized === "number" ? c.modernized : null;
+        return '<tr><td>' + esc(c.name || c.key) + '</td>' +
+          '<td class="num">' + (has(c.weight) ? esc(c.weight) : "-") + '</td>' +
+          '<td class="num">' + (l === null ? '<span style="color:var(--text-muted)">n/a</span>' : l) + '</td>' +
+          '<td class="num">' + (m === null ? '<span style="color:var(--text-muted)">n/a</span>' : m) + '</td>' +
+          '<td class="num">' + (l !== null && m !== null ? deltaSpan(m - l) : "-") + '</td></tr>';
+      }).join("") +
+      '</tbody></table></div>'
+    );
+    out.push('</div></section>');
+  }
+
+  /* --------------------------------------------------- 4. coverage risks */
+  var cov = arr(DATA.coverageRisks);
+  if (cov.length) {
+    out.push(
+      '<section id="coverage"><h2>Resolved, or simply not migrated?</h2>' +
+      '<p class="count-note" style="margin-bottom:14px">' +
+      'A vulnerability that disappeared because the feature carrying it was never migrated is not a ' +
+      'fix. It is an open migration item, and the flaw returns with the feature unless the new design ' +
+      'addresses it. These are listed separately for that reason.' +
+      '</p>'
+    );
+    cov.forEach(function (c) {
+      out.push(
+        '<div class="coverage">' +
+          '<h4>' + esc(c.area || c.title || "Unmigrated area") + '</h4>' +
+          (has(c.why) ? '<p class="why">' + esc(c.why) + '</p>' : "") +
+          (arr(c.findings).length
+            ? '<p style="margin:0;font-size:13px">Legacy findings that vanish with it: ' +
+              arr(c.findings).map(function (id) {
+                return '<a href="#' + esc(id) + '" class="tag">' + esc(id) + '</a>';
+              }).join(" ") + '</p>'
+            : "") +
+          (has(c.recommendation)
+            ? '<p class="why" style="margin:8px 0 0"><strong>Carry forward:</strong> ' + esc(c.recommendation) + '</p>'
+            : "") +
+        '</div>'
+      );
+    });
+    out.push('</section>');
+  }
+
+  /* ------------------------------------------------------------- 5. items */
+  function sideBlock(label, s, fallbackText) {
+    if (!s) {
+      return '<div class="side"><h5>' + esc(label) + '</h5>' +
+             '<p class="none">' + esc(fallbackText) + '</p></div>';
+    }
+    var locs = arr(s.locations).map(function (l) {
+      return '<div class="loc"><span class="path">' + esc(l.file) + '</span>' +
+             (has(l.line) ? '<span style="color:var(--text-muted)">:' + esc(l.line) + '</span>' : "") +
+             (has(l.excerpt) ? '<span class="code">' + esc(l.excerpt) + '</span>' : "") + '</div>';
+    }).join("");
+    return '<div class="side"><h5>' + esc(label) + '</h5>' +
+      '<p style="margin:0 0 8px;font-size:13px">' +
+        (has(s.id) ? '<span class="tag">' + esc(s.id) + '</span> ' : "") +
+        (has(s.severity) ? sevIcon(s.severity) + " " + esc(s.severity) : "") +
+        (has(s.confidence) ? ' <span class="conf">' + esc(s.confidence) + '</span>' : "") +
+      '</p>' +
+      (has(s.evidence)
+        ? '<p style="margin:0 0 8px;font-size:13px;color:var(--text-secondary);line-height:1.55">' +
+          esc(s.evidence) + '</p>'
+        : "") +
+      (locs || '<p class="none">No locations recorded.</p>') +
+      '</div>';
+  }
+
+  function itemCard(i) {
+    var tags = [];
+    if (has(i.owasp)) tags.push('<span class="tag">' + esc(i.owasp) + '</span>');
+    arr(i.cwe).forEach(function (c) { tags.push('<span class="tag">' + esc(c) + '</span>'); });
+    arr(i.attack).forEach(function (a) {
+      tags.push('<span class="tag">ATT&amp;CK ' + esc(a.id) + (has(a.name) ? " " + esc(a.name) : "") + '</span>');
+    });
+    if (i.nist) {
+      arr(i.nist.ssdf).forEach(function (n) { tags.push('<span class="tag">SSDF ' + esc(n) + '</span>'); });
+      arr(i.nist.sp80053).forEach(function (n) { tags.push('<span class="tag">800-53 ' + esc(n) + '</span>'); });
+    }
+    if (has(i.functionalArea)) tags.push('<span class="tag">' + esc(i.functionalArea) + '</span>');
+
+    var s = [];
+    s.push('<details class="finding" id="' + esc(i.id) + '" data-bucket="' + esc(i.bucket) +
+           '" data-sev="' + esc(i.severity) + '">');
+    s.push(
+      '<summary>' +
+        '<span class="chev"></span>' +
+        '<span class="sev-pill" data-sev="' + esc(i.severity) + '">' + esc(i.severity) + '</span>' +
+        bkPill(i.bucket) +
+        '<span class="ftitle">' + esc(i.id) + ". " + esc(i.title) + '</span>' +
+      '</summary>'
+    );
+    s.push('<div class="fbody">');
+    if (tags.length) s.push('<div class="fblock"><div class="h">Standards</div>' + tags.join("") + '</div>');
+
+    if (has(i.migrationNote)) {
+      s.push('<div class="fblock"><div class="h">What the migration did</div>' +
+             '<p style="margin:0">' + esc(i.migrationNote) + '</p></div>');
+    }
+
+    /* The side-by-side is the point of this report - always render both columns. */
+    s.push('<div class="fblock"><div class="h">Evidence on each side</div><div class="side-by-side">' +
+      sideBlock("Legacy", i.legacy,
+        (i.bucket === "introduced" || i.bucket === "new-surface")
+          ? "Not present in the legacy codebase." : "No legacy counterpart recorded.") +
+      sideBlock("Modernized", i.modernized,
+        i.bucket === "resolved"
+          ? "No longer present in the modernized codebase." : "No modernized counterpart recorded.") +
+      '</div>');
+    if (i.match && (has(i.match.confidence) || has(i.match.basis))) {
+      s.push('<p class="count-note" style="margin-top:10px">' +
+        (has(i.match.confidence)
+          ? '<span class="match" data-c="' + esc(i.match.confidence) + '">Match: ' + esc(i.match.confidence) + '</span> '
+          : "") +
+        esc(i.match.basis || "") + '</p>');
+    }
+    s.push('</div>');
+
+    if (i.resolution && (has(i.resolution.reason) || has(i.resolution.detail))) {
+      var warn = i.resolution.reason === "feature-not-migrated";
+      s.push('<div class="fblock"><div class="h">Why it is gone</div>' +
+        (warn
+          ? '<div class="warnbox" style="margin-bottom:8px"><strong>Not a fix.</strong> ' +
+            'The flaw disappeared with code that was never migrated. It returns with the feature.</div>'
+          : "") +
+        '<p style="margin:0">' +
+        (has(i.resolution.reason) ? '<span class="tag">' + esc(i.resolution.reason) + '</span> ' : "") +
+        esc(i.resolution.detail || "") + '</p></div>');
+    }
+
+    if (has(i.risk)) {
+      s.push('<div class="fblock"><div class="h">Risk</div><p style="margin:0">' + esc(i.risk) + '</p></div>');
+    }
+
+    var r = i.remediation;
+    if (r) {
+      var badge = r.breakingChange
+        ? '<span class="badge-br">Breaking change</span>'
+        : (r.nonBreaking ? '<span class="badge-nb">Non-breaking</span>' : "");
+      s.push('<div class="fblock"><div class="h">Remediation' + (badge ? " " + badge : "") +
+        (has(r.effort) ? ' <span class="tag">Effort ' + esc(r.effort) + '</span>' : "") + '</div>');
+      if (r.breakingChange) {
+        s.push('<div class="warnbox" style="margin-bottom:10px"><strong>This fix changes behaviour.</strong> ' +
+               'Schedule it deliberately &mdash; it is not a drop-in change.</div>');
+      }
+      if (has(r.summary)) s.push('<p style="margin:0 0 10px">' + esc(r.summary) + '</p>');
+      if (arr(r.steps).length) {
+        s.push('<ol class="steps">' + arr(r.steps).map(function (x) {
+          return "<li>" + esc(x) + "</li>";
+        }).join("") + '</ol>');
+      }
+      if (has(r.codeBefore) || has(r.codeAfter)) {
+        s.push('<div class="diff" style="margin-top:12px">' +
+          (has(r.codeBefore)
+            ? '<div class="before"><div class="lbl">Before</div><pre class="code">' + esc(r.codeBefore) + '</pre></div>'
+            : "") +
+          (has(r.codeAfter)
+            ? '<div class="after"><div class="lbl">After</div><pre class="code">' + esc(r.codeAfter) + '</pre></div>'
+            : "") +
+          '</div>');
+      }
+      s.push('</div>');
+    }
+    if (has(i.verification)) {
+      s.push('<div class="fblock"><div class="h">Verification</div>' +
+             '<div class="verify">' + esc(i.verification) + '</div></div>');
+    }
+    var refs = arr(i.references);
+    if (refs.length) {
+      s.push('<div class="fblock"><div class="h">References</div><ul class="plain">' +
+        refs.map(function (x) {
+          return has(x.url)
+            ? '<li><a href="' + esc(x.url) + '" target="_blank" rel="noopener">' + esc(x.label || x.url) + '</a></li>'
+            : "<li>" + esc(x.label) + "</li>";
+        }).join("") + '</ul></div>');
+    }
+    s.push('</div></details>');
+    return s.join("");
+  }
+
+  out.push('<section id="items"><h2>Finding-by-finding comparison</h2>');
+  out.push(
+    '<div class="toolbar no-print">' +
+      '<span style="font-size:12px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em">Bucket</span>' +
+      BUCKETS.map(function (b) {
+        return '<button class="chip" type="button" data-bucket="' + b.key + '" aria-pressed="false">' +
+               esc(b.label) + '</button>';
+      }).join("") +
+      '<span style="font-size:12px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;margin-left:10px">Severity</span>' +
+      SEVS.map(function (s) {
+        return '<button class="chip" type="button" data-sev="' + s + '" aria-pressed="false">' + s + '</button>';
+      }).join("") +
+      '<button class="btn" id="expandAll" type="button">Expand all</button>' +
+    '</div>'
+  );
+  if (!items.length) {
+    out.push('<div class="empty">No comparable findings were produced.</div>');
+  }
+  items.forEach(function (i) { out.push(itemCard(i)); });
+  out.push('</section>');
+
+  /* ----------------------------------------------------------- 6. roadmap */
+  var roadmap = arr(DATA.roadmap);
+  if (roadmap.length) {
+    out.push('<section id="roadmap"><h2>Remediation roadmap for the modernized codebase</h2><div class="card">');
+    roadmap.forEach(function (p) {
+      out.push(
+        '<div class="phase">' +
+          '<div class="pnum">' + esc(p.phase) + '</div>' +
+          '<div><h3 style="font-size:15px;margin:0 0 4px">' + esc(p.name) + '</h3>' +
+            '<div style="font-size:12.5px;color:var(--text-muted)">' +
+              arr(p.findings).map(function (id) {
+                return '<a href="#' + esc(id) + '" class="tag">' + esc(id) + '</a>';
+              }).join("") +
+              (has(p.effort) ? ' <span class="tag">Effort ' + esc(p.effort) + '</span>' : "") +
+            '</div>' +
+            (has(p.rationale) ? '<p style="margin:8px 0 0;font-size:13.5px">' + esc(p.rationale) + '</p>' : "") +
+          '</div>' +
+          (has(p.scoreAfter) ? '<div class="pafter">&rarr; ' + esc(p.scoreAfter) + ' / 100</div>' : '<div></div>') +
+        '</div>'
+      );
+    });
+    out.push('</div></section>');
+  }
+
+  /* -------------------------------------------------------------- 7. cost */
+  var cost = DATA.cost;
+  if (cost) {
+    out.push('<section id="cost"><h2>Cost of this analysis</h2><div class="card">');
+    if (cost.source === "unavailable") {
+      out.push('<p class="empty">Cost was not collected for this run.</p>');
+    } else {
+      if (cost.source === "estimate") {
+        out.push('<div class="cost-caveat">These figures are an <strong>estimate</strong>. ' +
+          'Transcript-based measurement was unavailable for this run.</div>');
+      }
+      var phases = arr(cost.phases);
+      if (phases.length) {
+        out.push('<div class="table-scroll"><table class="phase-cost"><thead><tr>' +
+          '<th>Phase</th><th>Model</th><th class="num">Input</th><th class="num">Cache write</th>' +
+          '<th class="num">Cache read</th><th class="num">Output</th><th class="num">Total tokens</th>' +
+          '<th class="num">Cost</th></tr></thead><tbody>');
+        phases.forEach(function (p) {
+          var models = arr(p.byModel);
+          if (!models.length) {
+            out.push('<tr><td>' + esc(p.name) + '</td><td colspan="6" style="color:var(--text-muted)">' +
+              esc(p.note || "not collected") + '</td><td class="num">-</td></tr>');
+            return;
+          }
+          models.forEach(function (m, idx) {
+            var t = m.tokens || {}, c = m.costUSD || {};
+            out.push('<tr>' +
+              (idx === 0 ? '<td>' + esc(p.name) + '</td>' : '<td></td>') +
+              '<td><code>' + esc(m.model) + '</code>' +
+                (m.priced === false ? ' <span class="tag">unpriced</span>' : "") + '</td>' +
+              '<td class="num">' + num(t.input) + '</td>' +
+              '<td class="num">' + num((t.cacheWrite5m || 0) + (t.cacheWrite1h || 0)) + '</td>' +
+              '<td class="num">' + num(t.cacheRead) + '</td>' +
+              '<td class="num">' + num(t.output) + '</td>' +
+              '<td class="num">' + num(t.total) + '</td>' +
+              '<td class="num">' + money(c.total) + '</td>' +
+            '</tr>');
+          });
+          if (has(p.subtotalTokens) || has(p.subtotalCostUSD)) {
+            out.push('<tr><td></td><td style="color:var(--text-muted)">subtotal</td>' +
+              '<td class="num" colspan="4"></td>' +
+              '<td class="num">' + num(p.subtotalTokens) + '</td>' +
+              '<td class="num">' + money(p.subtotalCostUSD) + '</td></tr>');
+          }
+        });
+        var tot = cost.totals || {};
+        out.push('<tr class="total"><td>Total</td><td></td><td class="num" colspan="4"></td>' +
+          '<td class="num">' + num(tot.totalTokens) + '</td>' +
+          '<td class="num">' + money(tot.totalCostUSD) + '</td></tr>');
+        out.push('</tbody></table></div>');
+      }
+      var tt = cost.totals || {};
+      out.push('<div class="cost-total">' +
+        '<div><div style="font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted)">Total tokens</div>' +
+        '<div class="big">' + num(tt.totalTokens) + '</div></div>' +
+        '<div><div style="font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted)">Total cost</div>' +
+        '<div class="big">' + money(tt.totalCostUSD) + '</div></div>' +
+      '</div>');
+      if (has(cost.note)) out.push('<p class="count-note" style="margin-top:12px">' + esc(cost.note) + '</p>');
+    }
+    out.push('</div></section>');
+  }
+
+  /* ------------------------------------------------- 8. method + limits */
+  if (arr(DATA.methodology).length) {
+    out.push('<section id="method"><h2>How the comparison was made</h2><div class="card">' +
+      arr(DATA.methodology).map(function (p) { return "<p>" + esc(p) + "</p>"; }).join("") +
+      '</div></section>');
+  }
+  var lim = arr(DATA.limitations);
+  if (lim.length) {
+    out.push('<section id="limits"><h2>Limitations</h2><div class="card"><ul class="plain">' +
+      lim.map(function (l) { return "<li>" + esc(l) + "</li>"; }).join("") +
+      '</ul></div></section>');
+  }
+
+  out.push(
+    '<footer class="foot">' +
+      esc(meta.analyst || "Claude Code - security-audit-compare skill") +
+      ' &middot; generated ' + esc(meta.scanDate || "") +
+      ' &middot; static analysis of two source trees; no application was built or executed.' +
+    '</footer>'
+  );
+  out.push('</div>');
+
+  document.getElementById("root").innerHTML = out.join("");
+
+  /* ------------------------------------------------------------ behaviour */
+  var store = {
+    get: function (k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+    set: function (k, v) { try { localStorage.setItem(k, v); } catch (e) { /* file:// - fine */ } }
+  };
+
+  var saved = store.get("cmp-theme");
+  if (saved) document.documentElement.setAttribute("data-theme", saved);
+  var btn = document.getElementById("themeBtn");
+  if (btn) btn.addEventListener("click", function () {
+    var cur = document.documentElement.getAttribute("data-theme");
+    var next = cur === "dark" ? "light" : "dark";
+    document.documentElement.setAttribute("data-theme", next);
+    store.set("cmp-theme", next);
+  });
+
+  var cards = [].slice.call(document.querySelectorAll("details.finding"));
+  var chips = [].slice.call(document.querySelectorAll(".chip"));
+
+  function applyFilter() {
+    var onB = chips.filter(function (c) {
+      return c.hasAttribute("data-bucket") && c.getAttribute("aria-pressed") === "true";
+    }).map(function (c) { return c.getAttribute("data-bucket"); });
+    var onS = chips.filter(function (c) {
+      return c.hasAttribute("data-sev") && c.getAttribute("aria-pressed") === "true";
+    }).map(function (c) { return c.getAttribute("data-sev"); });
+    cards.forEach(function (card) {
+      var okB = !onB.length || onB.indexOf(card.getAttribute("data-bucket")) >= 0;
+      var okS = !onS.length || onS.indexOf(card.getAttribute("data-sev")) >= 0;
+      card.hidden = !(okB && okS);
+    });
+  }
+  chips.forEach(function (c) {
+    c.addEventListener("click", function () {
+      c.setAttribute("aria-pressed", c.getAttribute("aria-pressed") === "true" ? "false" : "true");
+      applyFilter();
+    });
+  });
+
+  var exp = document.getElementById("expandAll");
+  if (exp) exp.addEventListener("click", function () {
+    var anyClosed = cards.some(function (c) { return !c.open && !c.hidden; });
+    cards.forEach(function (c) { if (!c.hidden) c.open = anyClosed; });
+    exp.textContent = anyClosed ? "Collapse all" : "Expand all";
+  });
+
+  function openHash() {
+    if (!location.hash) return;
+    var t = document.getElementById(location.hash.slice(1));
+    if (t && t.tagName === "DETAILS") { t.hidden = false; t.open = true; t.scrollIntoView({ block: "start" }); }
+  }
+  window.addEventListener("hashchange", openHash);
+  openHash();
+})();
+</script>
+</body>
+</html>

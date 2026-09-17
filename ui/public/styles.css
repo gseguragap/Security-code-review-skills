@@ -1,0 +1,305 @@
+/* ============================================================================
+   Security Code Review - local UI. Dark, single stylesheet, no external fonts.
+   Status colour is never the only signal: every state ships a word beside it.
+   ========================================================================= */
+
+:root {
+  color-scheme: dark;
+
+  --bg:          #0b0b0c;
+  --surface-1:   #141416;
+  --surface-2:   #1c1c1f;
+  --surface-3:   #252529;
+  --border:      #2e2e33;
+  --border-hi:   #45454d;
+
+  --text:        #f2f2f3;
+  --text-2:      #b6b6bd;
+  --text-3:      #7e7e88;
+
+  --accent:      #4b9bff;
+  --good:        #3ecf6a;
+  --warn:        #f5b73d;
+  --bad:         #ff5f56;
+  --busy:        #4b9bff;
+
+  --radius: 10px;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 15px/1.6 var(--sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+.wrap { max-width: 900px; margin: 0 auto; padding: 0 24px; }
+
+/* ------------------------------------------------------------------ head */
+.masthead {
+  border-bottom: 1px solid var(--border);
+  background: linear-gradient(180deg, #141416 0%, #0b0b0c 100%);
+  padding: 34px 0 26px;
+  margin-bottom: 28px;
+}
+.masthead h1 {
+  margin: 0 0 6px;
+  font-size: 25px; font-weight: 600; letter-spacing: -.02em;
+}
+.masthead .sub { margin: 0; color: var(--text-2); font-size: 14.5px; }
+
+.preflight { margin-top: 16px; display: flex; flex-wrap: wrap; gap: 8px; }
+.pf {
+  display: inline-flex; align-items: center; gap: 7px;
+  font-size: 12.5px; font-family: var(--mono);
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: 999px; padding: 4px 12px; color: var(--text-2);
+}
+.pf b { color: var(--text); font-weight: 500; }
+.pf .dot { width: 7px; height: 7px; border-radius: 50%; flex: none; background: var(--text-3); }
+.pf.ok  .dot { background: var(--good); }
+.pf.bad .dot { background: var(--bad); }
+.pf.bad { border-color: #5c2b2b; }
+
+/* ----------------------------------------------------------------- cards */
+.card {
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 24px 26px 26px;
+  margin-bottom: 24px;
+}
+.card h2 {
+  margin: 0 0 20px; font-size: 17px; font-weight: 600; letter-spacing: -.01em;
+  display: flex; align-items: baseline; gap: 12px;
+}
+.card h3 { margin: 0 0 10px; font-size: 14px; font-weight: 600; color: var(--text); }
+
+/* ---------------------------------------------------------------- fields */
+.field { margin-bottom: 20px; }
+.field:last-of-type { margin-bottom: 0; }
+.row { display: flex; gap: 18px; align-items: flex-start; }
+.row .grow { flex: 1 1 auto; }
+@media (max-width: 620px) { .row { flex-direction: column; gap: 0; } .row .field { width: 100%; } }
+
+label {
+  display: block; margin-bottom: 7px;
+  font-size: 13px; font-weight: 550; color: var(--text);
+  letter-spacing: .01em;
+}
+.opt, .req {
+  font-weight: 400; font-size: 11px; text-transform: uppercase; letter-spacing: .06em;
+  padding: 1px 7px; border-radius: 999px; margin-left: 6px; vertical-align: 1px;
+}
+.opt { color: var(--text-3); background: var(--surface-3); }
+.req { color: var(--accent); background: rgba(75,155,255,.12); }
+
+input[type="text"], select {
+  width: 100%; padding: 10px 13px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font: 13.5px var(--mono);
+  transition: border-color .12s, background .12s;
+}
+select { font-family: var(--sans); font-size: 13.5px; }
+input[type="text"]::placeholder { color: #55555e; }
+input[type="text"]:focus, select:focus, .btn:focus-visible, .log:focus-visible {
+  outline: none; border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(75,155,255,.18);
+}
+
+.hint { margin: 7px 0 0; font-size: 12.5px; color: var(--text-3); line-height: 1.5; }
+.hint strong { color: var(--text-2); font-weight: 550; }
+
+.state { margin: 7px 0 0; font-size: 12.5px; font-family: var(--mono); min-height: 1em; }
+.state:empty { display: none; }
+.state.ok   { color: var(--good); }
+.state.warn { color: var(--warn); }
+.state.error{ color: var(--bad); }
+.state.skip { color: var(--text-3); }
+.state::before { margin-right: 7px; font-family: var(--sans); }
+.state.ok::before    { content: "OK"; font-size: 10px; font-weight: 700; letter-spacing: .08em; }
+.state.warn::before  { content: "CHECK"; font-size: 10px; font-weight: 700; letter-spacing: .08em; }
+.state.error::before { content: "ERROR"; font-size: 10px; font-weight: 700; letter-spacing: .08em; }
+.state.skip::before  { content: "SKIP"; font-size: 10px; font-weight: 700; letter-spacing: .08em; }
+
+/* ------------------------------------------------------------------ plan */
+.plan {
+  margin-top: 24px; padding: 18px 20px;
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-left: 3px solid var(--accent); border-radius: 8px;
+}
+.plan dl { margin: 0; display: grid; grid-template-columns: 130px 1fr; gap: 7px 16px; font-size: 13px; }
+.plan dt { color: var(--text-3); }
+.plan dd { margin: 0; font-family: var(--mono); font-size: 12.5px; word-break: break-all; }
+.plan dd em { color: var(--text-3); font-style: normal; font-family: var(--sans); }
+
+/* read / write badges in the Access row. Write is the one that changes your disk, so it is
+   the one that gets the warmer colour - the eye should land on it, not on "read". */
+.plan dd .grant {
+  display: inline-block; min-width: 40px; margin-right: 6px; padding: 1px 6px;
+  border-radius: 4px; font-family: var(--sans); font-size: 11px; letter-spacing: .04em;
+  text-transform: uppercase; text-align: center;
+  color: var(--text-2); background: var(--surface-3);
+}
+.plan dd .grant.write { color: var(--warn); background: rgba(245,183,61,.13); }
+.costnote {
+  margin: 16px 0 0; padding-top: 14px; border-top: 1px solid var(--border);
+  font-size: 12.5px; color: var(--text-2); line-height: 1.55;
+}
+.costnote strong { color: var(--warn); }
+
+/* --------------------------------------------------------------- actions */
+.actions { margin-top: 24px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.btn {
+  padding: 9px 18px; border-radius: 8px; cursor: pointer;
+  background: var(--surface-3); color: var(--text);
+  border: 1px solid var(--border-hi);
+  font: 550 13.5px var(--sans);
+  transition: background .12s, border-color .12s, opacity .12s;
+}
+.btn:hover:not(:disabled) { background: #2f2f35; border-color: #55555f; }
+.btn:disabled { opacity: .4; cursor: not-allowed; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #06121f; font-weight: 650; }
+.btn.primary:hover:not(:disabled) { background: #66aaff; border-color: #66aaff; }
+.btn.danger { color: var(--bad); border-color: #5c2b2b; background: rgba(255,95,86,.07); }
+.btn.danger:hover:not(:disabled) { background: rgba(255,95,86,.14); border-color: var(--bad); }
+.btn.small { padding: 5px 12px; font-size: 12.5px; }
+.formmsg { font-size: 13px; color: var(--bad); }
+.formmsg.ok { color: var(--good); }
+
+/* ---------------------------------------------------------------- phases */
+.elapsed { font-size: 13px; font-weight: 400; color: var(--text-3); font-family: var(--mono); }
+.phases { list-style: none; margin: 0 0 22px; padding: 0; display: grid; gap: 9px; }
+.phases li {
+  display: flex; align-items: center; gap: 12px;
+  padding: 11px 15px; border-radius: 8px;
+  background: var(--surface-2); border: 1px solid var(--border);
+  font-size: 13.5px;
+}
+.phases .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; background: var(--text-3); }
+.phases .pname { flex: 1 1 auto; color: var(--text-2); }
+.phases .pstate {
+  font-size: 11px; text-transform: uppercase; letter-spacing: .07em;
+  font-weight: 600; color: var(--text-3);
+}
+.phases li[data-state="running"] { border-color: #24425f; background: rgba(75,155,255,.07); }
+.phases li[data-state="running"] .dot { background: var(--busy); animation: pulse 1.3s ease-in-out infinite; }
+.phases li[data-state="running"] .pname,
+.phases li[data-state="running"] .pstate { color: var(--accent); }
+.phases li[data-state="done"] .dot { background: var(--good); }
+.phases li[data-state="done"] .pstate { color: var(--good); }
+.phases li[data-state="done"] .pname { color: var(--text); }
+.phases li[data-state="failed"] .dot { background: var(--bad); }
+.phases li[data-state="failed"] .pstate { color: var(--bad); }
+.phases li[data-state="skipped"] { opacity: .5; }
+.phases li[data-state="not run"] { opacity: .55; }
+.phases li[data-state="not run"] .pstate { color: var(--text-3); }
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
+
+/* --------------------------------------------------------------- activity */
+/* The spinner is driven by arriving events, never by a timer alone: a spinner on a
+   setInterval spins just as happily when the CLI has hung, which is precisely the failure
+   this page exists to make visible. After STALL_MS of silence it stops and says so. */
+.activity {
+  display: flex; align-items: center; gap: 9px;
+  margin: 0 0 16px; padding: 9px 12px;
+  border: 1px solid var(--border); border-radius: 8px;
+  background: var(--surface-2);
+  font-family: var(--mono); font-size: 12.5px; color: var(--text-2);
+}
+.activity .spin {
+  width: 11px; height: 11px; flex: none; border-radius: 50%;
+  border: 2px solid var(--surface-3); border-top-color: var(--accent);
+  animation: spin .9s linear infinite;
+}
+.activitytext { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.activity.stalled { border-color: #5c4a1e; background: rgba(245,183,61,.07); color: var(--warn); }
+.activity.stalled .spin { animation: none; border-color: var(--surface-3); border-top-color: var(--warn); }
+.activity.ended { border-color: var(--border); background: var(--surface-2); color: var(--text-3); }
+.activity.ended .spin { animation: none; border-top-color: var(--text-3); }
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Motion is decoration here - the text beside it carries the state. */
+@media (prefers-reduced-motion: reduce) {
+  .activity .spin { animation: none; }
+  .phases li[data-state="running"] .dot { animation: none; }
+}
+
+/* ------------------------------------------------------------------ cost */
+/* Two different numbers live here and they must not look alike: a running estimate
+   priced locally, and the CLI's own measured total once the run ends. */
+.cost {
+  display: flex; align-items: baseline; flex-wrap: wrap; gap: 10px;
+  margin: 0 0 16px; padding: 10px 12px;
+  border: 1px solid var(--border); border-radius: 8px; background: var(--surface-2);
+  font-family: var(--mono); font-size: 12.5px;
+}
+.costamt { font-size: 15px; font-weight: 600; color: var(--text-2); }
+.costtag {
+  padding: 1px 7px; border-radius: 999px; font-size: 11px;
+  border: 1px dashed var(--border-hi); color: var(--text-3);
+}
+.costbreak { color: var(--text-3); margin-left: auto; }
+
+.cost.measured .costamt { color: var(--good); }
+.cost.measured .costtag { border-style: solid; border-color: var(--good); color: var(--good); }
+.cost.partial .costtag { border-color: var(--warn); color: var(--warn); }
+
+/* ------------------------------------------------------------------- log */
+.logwrap { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.logbar {
+  display: flex; align-items: center; gap: 14px;
+  padding: 8px 14px; background: var(--surface-2); border-bottom: 1px solid var(--border);
+}
+.logtitle {
+  flex: 1 1 auto; font-size: 11px; text-transform: uppercase;
+  letter-spacing: .08em; color: var(--text-3); font-weight: 600;
+}
+.chk { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--text-2); cursor: pointer; }
+.chk input { accent-color: var(--accent); }
+.log {
+  margin: 0; padding: 14px 16px; max-height: 420px; overflow: auto;
+  background: #0d0d0f; font: 12.5px/1.65 var(--mono);
+  color: var(--text-2); white-space: pre-wrap; word-break: break-word;
+}
+.log .err { color: #ff8b84; }
+.log .tool { color: var(--text-3); }
+.log .line { display: block; }
+.log:empty::before { content: "waiting for the first event..."; color: var(--text-3); }
+
+/* --------------------------------------------------------------- results */
+.results { margin-top: 24px; padding-top: 22px; border-top: 1px solid var(--border); }
+.reportlist { display: grid; gap: 10px; margin-bottom: 14px; }
+.report {
+  display: flex; align-items: center; gap: 14px;
+  padding: 13px 16px; border-radius: 8px; text-decoration: none;
+  background: var(--surface-2); border: 1px solid var(--border);
+  color: var(--text); transition: border-color .12s, background .12s;
+}
+.report:hover { background: var(--surface-3); border-color: var(--border-hi); }
+.report .kind {
+  font-size: 10.5px; text-transform: uppercase; letter-spacing: .08em; font-weight: 700;
+  padding: 3px 9px; border-radius: 999px; flex: none;
+}
+.report[data-kind="Legacy"]     .kind { color: var(--text-3); background: var(--surface-3); }
+.report[data-kind="Modernized"] .kind { color: var(--accent); background: rgba(75,155,255,.13); }
+.report[data-kind="Comparison"] .kind { color: var(--good); background: rgba(62,207,106,.12); }
+.report .fname { flex: 1 1 auto; font-size: 13px; font-family: var(--mono); word-break: break-all; }
+.report .size { font-size: 12px; color: var(--text-3); font-family: var(--mono); flex: none; }
+
+/* ------------------------------------------------------------------ foot */
+.foot {
+  padding: 24px 24px 40px; color: var(--text-3); font-size: 12.5px;
+  border-top: 1px solid var(--border); margin-top: 10px;
+}
+.foot code { font-family: var(--mono); color: var(--text-2); }

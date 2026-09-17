@@ -1,0 +1,1341 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Security analysis report</title>
+<style>
+/* ============================================================================
+   Security analysis report - self-contained stylesheet.
+   No external fonts, no CDN, no network. Opens from disk in any browser.
+   Palette: dataviz reference instance (categorical slots 1-2 + status roles),
+   used verbatim - the documented, validated default.
+   ========================================================================= */
+
+:root {
+  color-scheme: light;
+
+  --surface-0:      #f4f4f1;   /* page ground   */
+  --surface-1:      #fcfcfb;   /* card / chart  */
+  --surface-2:      #eeeeea;   /* inset, code   */
+  --border:         #dcdcd6;
+  --border-strong:  #c3c2b7;
+
+  --text-primary:   #0b0b0b;
+  --text-secondary: #52514e;
+  --text-muted:     #78776f;
+
+  /* categorical - fixed order, never cycled */
+  --series-1:       #2a78d6;   /* Current   */
+  --series-2:       #eb6834;   /* Projected */
+
+  /* status - reserved roles, always paired with an icon + label */
+  --st-good:        #0ca30c;
+  --st-warning:     #fab219;
+  --st-serious:     #ec835a;
+  --st-critical:    #d03b3b;
+  --st-neutral:     #78776f;
+
+  --grid:           #e6e6e1;
+  --shadow:         0 1px 2px rgba(0,0,0,.05), 0 4px 12px rgba(0,0,0,.04);
+  --radius:         10px;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --surface-0:      #121211;
+    --surface-1:      #1a1a19;
+    --surface-2:      #232322;
+    --border:         #33332f;
+    --border-strong:  #4a4a45;
+    --text-primary:   #ffffff;
+    --text-secondary: #c3c2b7;
+    --text-muted:     #96958c;
+    --series-1:       #3987e5;
+    --series-2:       #d95926;
+    --grid:           #2b2b28;
+    --shadow:         0 1px 2px rgba(0,0,0,.4), 0 4px 12px rgba(0,0,0,.3);
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --surface-0:      #121211;
+  --surface-1:      #1a1a19;
+  --surface-2:      #232322;
+  --border:         #33332f;
+  --border-strong:  #4a4a45;
+  --text-primary:   #ffffff;
+  --text-secondary: #c3c2b7;
+  --text-muted:     #96958c;
+  --series-1:       #3987e5;
+  --series-2:       #d95926;
+  --grid:           #2b2b28;
+  --shadow:         0 1px 2px rgba(0,0,0,.4), 0 4px 12px rgba(0,0,0,.3);
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--surface-0);
+  color: var(--text-primary);
+  font: 15px/1.6 var(--sans);
+  padding: 0 0 5rem;
+}
+img { max-width: 100%; }
+[hidden] { display: none !important; }
+
+.wrap { max-width: 1160px; margin: 0 auto; padding: 0 24px; }
+
+/* ---------------------------------------------------------------- header */
+header.masthead {
+  background: var(--surface-1);
+  border-bottom: 1px solid var(--border);
+  padding: 28px 0 22px;
+  margin-bottom: 28px;
+}
+.masthead h1 { margin: 0 0 6px; font-size: 26px; line-height: 1.25; letter-spacing: -.02em; }
+.masthead .sub { color: var(--text-secondary); font-size: 14px; margin: 0; }
+.meta-grid {
+  display: grid; gap: 10px 28px; margin-top: 18px;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  font-size: 13px;
+}
+.meta-grid dt { color: var(--text-muted); font-size: 11px; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 2px; }
+.meta-grid dd { margin: 0; color: var(--text-primary); word-break: break-word; }
+
+.theme-toggle {
+  position: absolute; top: 20px; right: 24px;
+  background: var(--surface-2); color: var(--text-secondary);
+  border: 1px solid var(--border); border-radius: 999px;
+  padding: 6px 14px; font: inherit; font-size: 12px; cursor: pointer;
+}
+.theme-toggle:hover { border-color: var(--border-strong); color: var(--text-primary); }
+.masthead { position: relative; }
+
+/* ---------------------------------------------------------------- sections */
+section { margin: 0 0 38px; }
+h2 {
+  font-size: 13px; text-transform: uppercase; letter-spacing: .08em;
+  color: var(--text-muted); margin: 0 0 14px; font-weight: 600;
+}
+h3 { font-size: 17px; margin: 0 0 10px; letter-spacing: -.01em; }
+p  { margin: 0 0 12px; }
+
+.card {
+  background: var(--surface-1); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 20px; box-shadow: var(--shadow);
+}
+
+/* ---------------------------------------------------------------- score tiles */
+.score-row { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); }
+.tile {
+  background: var(--surface-1); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 18px 20px; box-shadow: var(--shadow);
+}
+.tile .label { font-size: 11px; text-transform: uppercase; letter-spacing: .07em; color: var(--text-muted); margin-bottom: 6px; }
+.tile .hero { font-size: 40px; line-height: 1; font-weight: 650; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+.tile .hero .of { font-size: 17px; font-weight: 400; color: var(--text-muted); letter-spacing: 0; }
+.tile .foot { margin-top: 8px; font-size: 13px; color: var(--text-secondary); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+.grade {
+  display: inline-block; font-weight: 650; font-size: 13px;
+  padding: 2px 9px; border-radius: 6px;
+  background: var(--surface-2); border: 1px solid var(--border-strong);
+}
+.posture { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 550; }
+.posture .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+.posture[data-band="Hardened"] .dot { background: var(--st-good); }
+.posture[data-band="Adequate"] .dot { background: var(--series-1); }
+.posture[data-band="At Risk"]  .dot { background: var(--st-warning); }
+.posture[data-band="Critical"] .dot { background: var(--st-critical); }
+
+.uplift { color: var(--st-good); font-weight: 650; font-variant-numeric: tabular-nums; }
+
+/* ---------------------------------------------------------------- severity KPI */
+.sev-row { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(112px, 1fr)); margin-top: 16px; }
+.sev-tile {
+  background: var(--surface-1); border: 1px solid var(--border);
+  border-left: 3px solid var(--st-neutral);
+  border-radius: 8px; padding: 12px 14px;
+}
+.sev-tile .n { font-size: 26px; font-weight: 650; line-height: 1; font-variant-numeric: tabular-nums; }
+.sev-tile .k { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-secondary); margin-top: 5px; display: flex; align-items: center; gap: 5px; }
+.sev-tile[data-sev="Critical"] { border-left-color: var(--st-critical); }
+.sev-tile[data-sev="High"]     { border-left-color: var(--st-serious); }
+.sev-tile[data-sev="Medium"]   { border-left-color: var(--st-warning); }
+.sev-tile[data-sev="Low"]      { border-left-color: var(--series-1); }
+.sev-tile[data-sev="Info"]     { border-left-color: var(--st-neutral); }
+
+/* ---------------------------------------------------------------- chart */
+.legend { display: flex; gap: 18px; align-items: center; font-size: 12.5px; color: var(--text-secondary); margin-bottom: 16px; flex-wrap: wrap; }
+.legend .key { display: inline-flex; align-items: center; gap: 7px; }
+.legend .swatch { width: 11px; height: 11px; border-radius: 3px; flex: none; }
+
+.bars { display: grid; gap: 14px; }
+.bar-row { display: grid; grid-template-columns: minmax(140px, 200px) 1fr; gap: 16px; align-items: center; }
+.bar-row .cat { font-size: 13px; color: var(--text-secondary); line-height: 1.3; }
+.bar-row .cat .wt { color: var(--text-muted); font-size: 11px; display: block; }
+.bar-stack { display: grid; gap: 2px; }              /* 2px surface gap between adjacent bars */
+.bar-line  { display: grid; grid-template-columns: 1fr 34px; gap: 8px; align-items: center; }
+.bar-track { position: relative; height: 13px; background: var(--grid); border-radius: 3px; }
+.bar-fill {
+  position: absolute; left: 0; top: 0; bottom: 0;
+  border-radius: 0 4px 4px 0;                        /* 4px rounded data-end, anchored to baseline */
+  min-width: 3px;
+}
+.bar-fill.s1 { background: var(--series-1); }
+.bar-fill.s2 { background: var(--series-2); }
+.bar-val {
+  font-size: 11.5px; font-variant-numeric: tabular-nums; color: var(--text-secondary);
+  text-align: right; white-space: nowrap;
+}
+.bar-row.na .bar-track { background: repeating-linear-gradient(135deg, var(--grid), var(--grid) 4px, transparent 4px, transparent 8px); }
+.bar-na { font-size: 11.5px; color: var(--text-muted); font-style: italic; padding-left: 2px; }
+
+/* ---------------------------------------------------------------- tables */
+table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+th { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--text-muted); font-weight: 600; white-space: nowrap; }
+tbody tr:last-child td { border-bottom: none; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+td.ctr, th.ctr { text-align: center; }
+td.id, th.id   { white-space: nowrap; width: 1%; }
+.table-scroll { overflow-x: auto; }
+
+.sev-pill {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 11.5px; font-weight: 600; padding: 2px 8px; border-radius: 999px;
+  border: 1px solid; white-space: nowrap;
+}
+.sev-pill[data-sev="Critical"] { color: var(--st-critical); border-color: var(--st-critical); }
+.sev-pill[data-sev="High"]     { color: var(--st-serious);  border-color: var(--st-serious); }
+.sev-pill[data-sev="Medium"]   { color: var(--st-warning);  border-color: var(--st-warning); }
+.sev-pill[data-sev="Low"]      { color: var(--series-1);    border-color: var(--series-1); }
+.sev-pill[data-sev="Info"]     { color: var(--text-muted);  border-color: var(--border-strong); }
+:root[data-theme="dark"] .sev-pill[data-sev="Medium"],
+:root:not([data-theme="light"]) .sev-pill[data-sev="Medium"] { color: var(--st-warning); }
+
+.tag {
+  display: inline-block; font-size: 11px; font-family: var(--mono);
+  background: var(--surface-2); border: 1px solid var(--border);
+  color: var(--text-secondary); padding: 1px 6px; border-radius: 4px; margin: 1px 3px 1px 0;
+  white-space: nowrap;
+}
+.conf { font-size: 11.5px; color: var(--text-secondary); }
+.conf[data-c="Possible"] { color: var(--st-warning); font-weight: 600; }
+
+/* ---------------------------------------------------------------- filters */
+.toolbar {
+  display: flex; gap: 10px; flex-wrap: wrap; align-items: center;
+  margin-bottom: 14px; padding: 12px 14px;
+  background: var(--surface-1); border: 1px solid var(--border); border-radius: var(--radius);
+}
+.toolbar input[type="search"], .toolbar select {
+  font: inherit; font-size: 13px; padding: 6px 10px;
+  background: var(--surface-2); color: var(--text-primary);
+  border: 1px solid var(--border); border-radius: 7px;
+}
+.toolbar input[type="search"] { min-width: 210px; flex: 1 1 210px; }
+.chip {
+  font: inherit; font-size: 12px; padding: 5px 11px; cursor: pointer;
+  background: var(--surface-2); color: var(--text-secondary);
+  border: 1px solid var(--border); border-radius: 999px;
+}
+.chip[aria-pressed="true"] { background: var(--text-primary); color: var(--surface-1); border-color: var(--text-primary); }
+.btn {
+  font: inherit; font-size: 12.5px; padding: 6px 13px; cursor: pointer;
+  background: var(--surface-2); color: var(--text-secondary);
+  border: 1px solid var(--border); border-radius: 7px;
+}
+.btn:hover { border-color: var(--border-strong); color: var(--text-primary); }
+.count-note { font-size: 12.5px; color: var(--text-muted); margin-left: auto; }
+
+/* ---------------------------------------------------------------- findings */
+.finding {
+  background: var(--surface-1); border: 1px solid var(--border);
+  border-radius: var(--radius); margin-bottom: 12px; box-shadow: var(--shadow);
+  overflow: hidden;
+}
+.finding.done { opacity: .62; }
+.finding > summary {
+  list-style: none; cursor: pointer; padding: 14px 18px;
+  display: grid; grid-template-columns: auto auto 1fr auto; gap: 12px; align-items: center;
+}
+.finding > summary::-webkit-details-marker { display: none; }
+.finding > summary:hover { background: var(--surface-2); }
+.finding .fid { font-family: var(--mono); font-size: 12px; color: var(--text-muted); }
+.finding .ftitle { display: block; font-weight: 550; font-size: 14.5px; line-height: 1.35; }
+.finding .fmeta  { display: block; font-size: 12px; color: var(--text-muted); margin-top: 3px; }
+.finding .chev { color: var(--text-muted); font-size: 12px; }
+.finding[open] .chev { transform: rotate(90deg); }
+.chev { display: inline-block; transition: transform .12s ease; }
+
+.fbody { padding: 4px 18px 20px; border-top: 1px solid var(--border); }
+.fblock { margin-top: 16px; }
+.fblock > .h {
+  font-size: 11px; text-transform: uppercase; letter-spacing: .07em;
+  color: var(--text-muted); font-weight: 600; margin-bottom: 6px;
+}
+.loc {
+  font-family: var(--mono); font-size: 12.5px;
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-left: 2px solid var(--border-strong);
+  border-radius: 6px; padding: 8px 11px; margin-bottom: 6px; overflow-x: auto;
+}
+.loc .path { color: var(--series-1); font-weight: 600; }
+.loc .code { display: block; margin-top: 4px; color: var(--text-secondary); white-space: pre; }
+
+pre.code {
+  font-family: var(--mono); font-size: 12.5px; line-height: 1.55;
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: 8px; padding: 12px 14px; overflow-x: auto; margin: 0;
+  white-space: pre;
+}
+.diff { display: grid; gap: 10px; grid-template-columns: 1fr 1fr; }
+@media (max-width: 800px) { .diff { grid-template-columns: 1fr; } }
+.diff .lbl { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted); margin-bottom: 5px; }
+.diff .before pre.code { border-left: 2px solid var(--st-critical); }
+.diff .after  pre.code { border-left: 2px solid var(--st-good); }
+
+ol.steps { margin: 0; padding-left: 20px; }
+ol.steps li { margin-bottom: 6px; }
+ul.plain { margin: 0; padding-left: 18px; }
+ul.plain li { margin-bottom: 5px; }
+
+.verify {
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-left: 3px solid var(--st-good);
+  border-radius: 7px; padding: 10px 13px; font-size: 13.5px;
+}
+.warnbox {
+  background: var(--surface-2); border: 1px solid var(--st-warning);
+  border-left: 3px solid var(--st-warning);
+  border-radius: 7px; padding: 10px 13px; font-size: 13.5px;
+}
+.kv { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px 20px; font-size: 13px; }
+.kv .k { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted); }
+
+.badge-nb {
+  font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px;
+  border: 1px solid var(--st-good); color: var(--st-good);
+}
+.badge-br {
+  font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px;
+  border: 1px solid var(--st-critical); color: var(--st-critical);
+}
+
+.chk { width: 16px; height: 16px; cursor: pointer; accent-color: var(--st-good); }
+
+/* ---------------------------------------------------------------- roadmap */
+.phase {
+  display: grid; grid-template-columns: auto 1fr auto; gap: 14px; align-items: start;
+  padding: 14px 0; border-bottom: 1px solid var(--border);
+}
+.phase:last-child { border-bottom: none; }
+.phase .pnum {
+  width: 28px; height: 28px; border-radius: 50%; flex: none;
+  background: var(--series-1); color: #fff;
+  display: grid; place-items: center; font-size: 13px; font-weight: 650;
+}
+.phase .pafter { font-size: 13px; color: var(--text-secondary); white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+/* ---------------------------------------------------------------- cost */
+.cost-caveat {
+  border-left: 3px solid var(--st-warning);
+  background: var(--surface-2); border-radius: 7px;
+  padding: 10px 13px; font-size: 13.5px; margin-bottom: 14px;
+}
+.cost-total { display: flex; gap: 28px; flex-wrap: wrap; align-items: baseline; margin-top: 14px; }
+.cost-total .big { font-size: 30px; font-weight: 650; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+
+/* ---------------------------------------------------------------- misc */
+footer.foot { color: var(--text-muted); font-size: 12.5px; border-top: 1px solid var(--border); padding-top: 16px; margin-top: 40px; }
+.empty { color: var(--text-muted); font-style: italic; padding: 18px; text-align: center; }
+a { color: var(--series-1); }
+
+/* ---------------------------------------------------------------- print */
+@media print {
+  :root { color-scheme: light; }
+  body { background: #fff; font-size: 10.5pt; padding: 0; }
+  .toolbar, .theme-toggle, .no-print { display: none !important; }
+  .card, .tile, .finding, .sev-tile { box-shadow: none; border: 1px solid #ccc; break-inside: avoid; }
+  .finding { break-inside: avoid; }
+  .fbody { display: block !important; }
+  section { break-inside: avoid-page; }
+  h2 { break-after: avoid; }
+  a { text-decoration: none; color: inherit; }
+  .wrap { max-width: none; padding: 0 8mm; }
+}
+</style>
+</head>
+<body>
+<script id="audit-data" type="application/json">
+{
+  "schemaVersion": "1.0",
+  "meta": {
+    "projectName": "Informix-demo-3",
+    "targetPath": "Test/Demo-3/Informix-demo-3",
+    "scanDate": "2026-09-09",
+    "analyst": "Claude Code - security-audit skill v1.0",
+    "depth": "standard",
+    "mode": "plan",
+    "standards": [
+      "OWASP Top 10 (2021)",
+      "CWE",
+      "MITRE ATT&CK",
+      "NIST SP 800-218 (SSDF v1.1)",
+      "NIST SP 800-53 Rev. 5"
+    ],
+    "stack": {
+      "languages": ["C#", "Razor"],
+      "frameworks": [".NET 10", "Blazor Server", "EF Core", "MudBlazor", "Serilog"],
+      "dataStores": ["SQLite"],
+      "entryPoints": ["Program.cs", "Pages/*.razor"]
+    },
+    "inventory": {
+      "filesScanned": 148,
+      "linesScanned": 21430,
+      "filesSkipped": 2104,
+      "skipReasons": ["bin/ and obj/ build output", "wwwroot minified assets", "binary files"]
+    },
+    "migration": {
+      "isMigration": true,
+      "sourceLanguage": "Informix 4GL",
+      "targetLanguage": "C# / Blazor Server",
+      "sourcePathAudited": null
+    }
+  },
+
+  "scores": {
+    "profile": "modernizer-v1",
+    "current":   { "score": 53, "grade": "F",  "posture": "Critical" },
+    "projected": { "score": 90, "grade": "A-", "posture": "Hardened" },
+    "categories": [
+      { "key": "access-control",   "name": "Access Control",        "owasp": "A01", "weight": 25, "current": 10, "projected": 90, "assessed": true,
+        "note": "No authentication or authorization anywhere; all CRUD reachable anonymously; IDOR on record routes." },
+      { "key": "injection",        "name": "Injection",             "owasp": "A03", "weight": 15, "current": 95, "projected": 95, "assessed": true,
+        "note": "EF Core LINQ throughout; no raw or concatenated SQL found." },
+      { "key": "xss",              "name": "Cross-Site Scripting",  "owasp": "A03", "weight": 10, "current": 90, "projected": 95, "assessed": true,
+        "note": "Blazor auto-encoding intact, no MarkupString sinks; CSP is weak (S-4)." },
+      { "key": "misconfiguration", "name": "Security Misconfiguration", "owasp": "A05", "weight": 15, "current": 70, "projected": 92, "assessed": true,
+        "note": "Good header baseline; CSP allows unsafe-inline/unsafe-eval; deprecated header present." },
+      { "key": "cryptographic",    "name": "Cryptographic Failures","owasp": "A02", "weight": 10, "current": 50, "projected": 85, "assessed": true,
+        "note": "HTTPS and HSTS correct; SQLite database holding customer PII is plaintext on disk." },
+      { "key": "validation",       "name": "Input Validation",      "owasp": "A04", "weight": 10, "current": 30, "projected": 88, "assessed": true,
+        "note": "No server-side DataAnnotations or FluentValidation on any DTO or edit model." },
+      { "key": "logging",          "name": "Logging & Monitoring",  "owasp": "A09", "weight": 10, "current": 50, "projected": 85, "assessed": true,
+        "note": "Serilog request logging present; business mutations are not audited." },
+      { "key": "dependencies",     "name": "Vulnerable & Outdated Components", "owasp": "A06", "weight": 5, "current": null, "projected": null, "assessed": false,
+        "note": "Not assessed - no advisory database or MCP server was reachable. Inventory captured only; see S-9." }
+    ]
+  },
+
+  "strengths": [
+    { "title": "Parameterized data access throughout", "category": "injection",
+      "detail": "EF Core LINQ only. Zero FromSqlRaw / ExecuteSqlRaw / string-concatenated SQL across 148 files. The four 'SQL' string matches in D4DemoService.cs are documentation strings, not executed statements." },
+    { "title": "No XSS sinks", "category": "xss",
+      "detail": "Zero MarkupString or Html.Raw usages; Blazor's automatic contextual encoding is intact on every render path." },
+    { "title": "No hard-coded secrets", "category": "cryptographic",
+      "detail": "No credentials, API keys or private key material in source or configuration. The connection string is a local file path with no password." },
+    { "title": "Transport and header baseline in place", "category": "misconfiguration",
+      "detail": "HTTPS redirection, HSTS, antiforgery, rate limiting, and SecurityHeadersMiddleware setting nosniff, X-Frame-Options, Referrer-Policy and Permissions-Policy." },
+    { "title": "Seed-file I/O uses a fixed server path", "category": "access-control",
+      "detail": "No user input reaches a filesystem path; no traversal exposure in the seeding routine." }
+  ],
+
+  "findings": [
+    {
+      "id": "S-1",
+      "title": "No authentication or authorization anywhere in the application",
+      "severity": "Critical",
+      "confidence": "Confirmed",
+      "category": "access-control",
+      "owasp": "A01:2021 Broken Access Control",
+      "cwe": ["CWE-306", "CWE-862"],
+      "attack": [{ "id": "T1190", "name": "Exploit Public-Facing Application" }],
+      "nist": { "ssdf": ["PW.5", "PW.9"], "sp80053": ["AC-3", "IA-2"] },
+      "origin": "migration-exposed",
+      "exposure": "internet-facing",
+      "locations": [
+        { "file": "Program.cs", "line": 42, "excerpt": "app.MapBlazorHub();\napp.MapFallbackToPage(\"/_Host\");" },
+        { "file": "Pages/Customers.razor", "line": 1, "excerpt": "@page \"/customers\"" },
+        { "file": "Pages/Orders.razor", "line": 1, "excerpt": "@page \"/orders\"" }
+      ],
+      "evidence": "0 [Authorize] attributes across 148 files. No AddAuthentication, AddAuthorization, UseAuthentication or UseAuthorization calls in Program.cs. MapBlazorHub() is mapped with no RequireAuthorization().",
+      "risk": "Any anonymous visitor who can reach the URL can read and modify every customer, order and stock record, and can open a SignalR circuit to invoke server-side component logic directly.",
+      "impact": { "confidentiality": "High", "integrity": "High", "availability": "Low" },
+      "discovered": true,
+      "remediated": false,
+      "remediation": {
+        "summary": "Register an identity provider and apply a global default-deny authorization policy, so every page requires sign-in without editing any page.",
+        "nonBreaking": true,
+        "breakingChange": false,
+        "effort": "M",
+        "planned": true,
+        "steps": [
+          "Add ASP.NET Core Identity or the organisation's OIDC provider: AddAuthentication().AddOpenIdConnect(...) plus AddAuthorization().",
+          "Call UseAuthentication() and UseAuthorization() before UseAntiforgery() in the middleware pipeline.",
+          "Set a global fallback policy - AddAuthorizationBuilder().SetFallbackPolicy(new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build()) - so new pages are protected by default.",
+          "Mark the sign-in, health and error endpoints [AllowAnonymous].",
+          "Protect the circuit: app.MapBlazorHub().RequireAuthorization()."
+        ],
+        "codeBefore": "app.UseAntiforgery();\n\napp.MapBlazorHub();\napp.MapFallbackToPage(\"/_Host\");",
+        "codeAfter": "app.UseAuthentication();\napp.UseAuthorization();\napp.UseAntiforgery();\n\napp.MapBlazorHub().RequireAuthorization();\napp.MapFallbackToPage(\"/_Host\");",
+        "language": "csharp"
+      },
+      "verification": "An unauthenticated GET /customers returns 302 to the sign-in endpoint. After signing in, /customers renders exactly as it does today. dotnet build reports 0 errors and the seeded data still displays.",
+      "references": [
+        { "label": "OWASP A01:2021 Broken Access Control", "url": "https://owasp.org/Top10/A01_2021-Broken_Access_Control/" }
+      ]
+    },
+    {
+      "id": "S-2",
+      "title": "IDOR - record routes return any record by id with no ownership check",
+      "severity": "High",
+      "confidence": "Confirmed",
+      "category": "access-control",
+      "owasp": "A01:2021 Broken Access Control",
+      "cwe": ["CWE-639"],
+      "attack": [{ "id": "T1190", "name": "Exploit Public-Facing Application" }],
+      "nist": { "ssdf": ["PW.5"], "sp80053": ["AC-3", "AC-4"] },
+      "origin": "migration-exposed",
+      "exposure": "internet-facing",
+      "locations": [
+        { "file": "Pages/CustomerDetail.razor", "line": 1, "excerpt": "@page \"/customers/{CustomerNum:int}\"" },
+        { "file": "Pages/OrderDetail.razor", "line": 1, "excerpt": "@page \"/orders/{OrderNum:int}\"" }
+      ],
+      "evidence": "Both detail routes bind an integer id straight from the URL and load the record with no ownership, role or tenant predicate. Incrementing the id walks the whole table.",
+      "risk": "Enumeration of the full customer and order tables by anyone who can reach the app - names, addresses, phone numbers and order history.",
+      "impact": { "confidentiality": "High", "integrity": "Low", "availability": "Low" },
+      "discovered": true,
+      "remediated": false,
+      "remediation": {
+        "summary": "Authentication (S-1) closes anonymous enumeration. For a multi-tenant deployment, additionally scope the load query to the caller.",
+        "nonBreaking": true,
+        "breakingChange": false,
+        "effort": "S",
+        "planned": true,
+        "steps": [
+          "Apply S-1 first - it removes anonymous access to these routes entirely.",
+          "If the application is or will become multi-tenant, add the ownership predicate to the query itself rather than checking after loading, so a missing check fails closed.",
+          "For a single-tenant back-office application, authentication plus the S-3 write role is sufficient; record that decision in the threat model."
+        ],
+        "codeBefore": "var customer = await _service.get_customerAsync(CustomerNum);",
+        "codeAfter": "var customer = await _service.get_customerAsync(CustomerNum, currentUser.TenantId);\n// query filters on TenantId - a forgotten check returns null, not another tenant's row",
+        "language": "csharp"
+      },
+      "verification": "An authenticated user can open records belonging to their tenant; a request for another tenant's id returns 404, not the record. An anonymous request is redirected to sign-in."
+    },
+    {
+      "id": "S-4",
+      "title": "Content Security Policy allows unsafe-inline and unsafe-eval in script-src",
+      "severity": "Medium",
+      "confidence": "Confirmed",
+      "category": "misconfiguration",
+      "owasp": "A05:2021 Security Misconfiguration",
+      "cwe": ["CWE-693", "CWE-1021"],
+      "nist": { "ssdf": ["PW.9"], "sp80053": ["CM-6"] },
+      "origin": "new-surface",
+      "exposure": "internet-facing",
+      "locations": [
+        { "file": "Middleware/SecurityHeadersMiddleware.cs", "line": 34, "excerpt": "\"script-src 'self' 'unsafe-inline' 'unsafe-eval'; \" +" }
+      ],
+      "evidence": "script-src permits both 'unsafe-inline' and 'unsafe-eval', which removes most of the policy's value as an XSS mitigation.",
+      "risk": "Defense-in-depth failure. There is no XSS sink today (see strengths), but if one is introduced, CSP will not stop the injected script from executing.",
+      "impact": { "confidentiality": "Medium", "integrity": "Medium", "availability": "Low" },
+      "discovered": true,
+      "remediated": false,
+      "remediation": {
+        "summary": "Drop unsafe-eval, then replace unsafe-inline for scripts with a per-request nonce. Stage the change through report-only mode so it cannot break the app silently.",
+        "nonBreaking": true,
+        "breakingChange": false,
+        "effort": "S",
+        "planned": true,
+        "steps": [
+          "Remove 'unsafe-eval' - Blazor Server does not require it. Nothing should break.",
+          "Deploy the tightened policy as Content-Security-Policy-Report-Only for one release and review the violation reports.",
+          "Replace 'unsafe-inline' for scripts with a per-request nonce and add that nonce to the framework script tags in _Layout.cshtml.",
+          "Keep style-src 'unsafe-inline' - MudBlazor requires it, and style injection is materially lower risk than script injection."
+        ],
+        "codeBefore": "script-src 'self' 'unsafe-inline' 'unsafe-eval';",
+        "codeAfter": "script-src 'self' 'nonce-{perRequestNonce}';\nstyle-src  'self' 'unsafe-inline';   // retained: MudBlazor requirement",
+        "language": "text"
+      },
+      "verification": "The app loads and is fully interactive under the tightened policy, and the browser console shows zero CSP violations across the main routes."
+    },
+    {
+      "id": "S-5",
+      "title": "No server-side input validation on any DTO or edit model",
+      "severity": "Medium",
+      "confidence": "Confirmed",
+      "category": "validation",
+      "owasp": "A04:2021 Insecure Design",
+      "cwe": ["CWE-20"],
+      "nist": { "ssdf": ["PW.5"], "sp80053": ["SI-10"] },
+      "origin": "migration-exposed",
+      "exposure": "internet-facing",
+      "locations": [
+        { "file": "Application/DTOs/CustomerDto.cs", "line": 8, "excerpt": "public string Fname { get; set; } = string.Empty;" },
+        { "file": "Pages/CustomerEdit.razor", "line": 22, "excerpt": "<EditForm Model=\"@model\" OnValidSubmit=\"Save\">" }
+      ],
+      "evidence": "Zero DataAnnotations attributes and no FluentValidation validators across the DTO and edit-model types. The EditForm has no <DataAnnotationsValidator/>.",
+      "risk": "The legacy 4GL screen enforced field widths at the terminal. Over HTTP that constraint no longer exists, so over-length and malformed values now reach the data layer directly - a textbook migration-exposed gap.",
+      "impact": { "confidentiality": "Low", "integrity": "Medium", "availability": "Low" },
+      "discovered": true,
+      "remediated": false,
+      "remediation": {
+        "summary": "Add DataAnnotations matching the real column widths from the schema, and a DataAnnotationsValidator to each EditForm.",
+        "nonBreaking": true,
+        "breakingChange": false,
+        "effort": "M",
+        "planned": true,
+        "steps": [
+          "Read the real column lengths from the schema - Fname 15, Lname 15, State 2, Zipcode 5 - and mirror them exactly. Do not invent stricter limits: rejecting values the system previously accepted would be a behaviour change.",
+          "Add [Required], [StringLength], [Range] and [RegularExpression] to the edit models accordingly.",
+          "Add <DataAnnotationsValidator /> and a <ValidationSummary /> to each EditForm.",
+          "Keep validation server-side; the Blazor Server model already evaluates it on the server."
+        ],
+        "codeBefore": "public string Fname { get; set; } = string.Empty;\npublic string State { get; set; } = string.Empty;",
+        "codeAfter": "[Required, StringLength(15)]\npublic string Fname { get; set; } = string.Empty;\n\n[Required, StringLength(2, MinimumLength = 2)]\npublic string State { get; set; } = string.Empty;",
+        "language": "csharp"
+      },
+      "verification": "A 200-character first name is rejected with a validation message; a 14-character name saves normally and the record is unchanged in shape."
+    },
+    {
+      "id": "S-6",
+      "title": "Customer PII stored unencrypted at rest",
+      "severity": "Medium",
+      "confidence": "Confirmed",
+      "category": "cryptographic",
+      "owasp": "A02:2021 Cryptographic Failures",
+      "cwe": ["CWE-311"],
+      "attack": [{ "id": "T1530", "name": "Data from Cloud Storage" }],
+      "nist": { "ssdf": ["PW.9"], "sp80053": ["SC-28"] },
+      "origin": "legacy-inherited",
+      "exposure": "internal",
+      "locations": [
+        { "file": "appsettings.json", "line": 9, "excerpt": "\"DefaultConnection\": \"Data Source=stores7.db\"" }
+      ],
+      "evidence": "The SQLite database file holds customer names, addresses and phone numbers as plaintext. Any read access to the filesystem or any backup copy exposes the full dataset.",
+      "risk": "A stolen backup, a misconfigured volume mount or filesystem access through another flaw yields the entire customer table with no further effort.",
+      "impact": { "confidentiality": "High", "integrity": "Low", "availability": "Low" },
+      "discovered": true,
+      "remediated": false,
+      "remediation": {
+        "summary": "Encrypt at the storage layer - SQLCipher or an encrypted volume - keeping the key in a secret store. Prefer platform encryption over column encryption so queries are unaffected.",
+        "nonBreaking": true,
+        "breakingChange": false,
+        "effort": "M",
+        "planned": true,
+        "steps": [
+          "Switch to the SQLCipher-backed SQLite provider and supply the key through configuration: Data Source=stores7.db;Password=<from secret store>.",
+          "Store the key in user-secrets for development and Key Vault / Secrets Manager in production - never in appsettings.json.",
+          "Alternatively, host the file on an encrypted volume if the platform provides one; this needs no code change at all.",
+          "Do not use column-level encryption here - it would break sorting and filtering on the affected columns."
+        ],
+        "verificationNote": "Queries and indexes are unchanged under storage-layer encryption.",
+        "language": "text"
+      },
+      "verification": "The .db file is not readable as plaintext with a hex viewer or the sqlite3 CLI without the key; the application opens it with the key and every page behaves as before."
+    },
+    {
+      "id": "S-7",
+      "title": "Deprecated X-XSS-Protection header is set",
+      "severity": "Low",
+      "confidence": "Confirmed",
+      "category": "misconfiguration",
+      "owasp": "A05:2021 Security Misconfiguration",
+      "cwe": ["CWE-16"],
+      "nist": { "sp80053": ["CM-6"] },
+      "exposure": "internet-facing",
+      "locations": [
+        { "file": "Middleware/SecurityHeadersMiddleware.cs", "line": 28, "excerpt": "ctx.Response.Headers[\"X-XSS-Protection\"] = \"1; mode=block\";" }
+      ],
+      "evidence": "The header is set on every response. Modern browsers ignore it, and its legacy auditor could itself introduce vulnerabilities in older engines.",
+      "risk": "No direct exploitability. It is noise that suggests the header set has not been reviewed recently.",
+      "impact": { "confidentiality": "Low", "integrity": "Low", "availability": "Low" },
+      "discovered": true,
+      "remediated": false,
+      "remediation": {
+        "summary": "Remove the header. CSP (S-4) is the modern control for this class of attack.",
+        "nonBreaking": true,
+        "breakingChange": false,
+        "effort": "S",
+        "planned": true,
+        "steps": ["Delete the X-XSS-Protection line from SecurityHeadersMiddleware."],
+        "language": "csharp"
+      },
+      "verification": "The header is absent from responses; no behaviour change anywhere in the app."
+    },
+    {
+      "id": "S-9",
+      "title": "No automated dependency vulnerability scanning in the pipeline",
+      "severity": "Low",
+      "confidence": "Confirmed",
+      "category": "dependencies",
+      "owasp": "A06:2021 Vulnerable and Outdated Components",
+      "cwe": ["CWE-1104"],
+      "nist": { "ssdf": ["PW.4", "RV.1"], "sp80053": ["RA-5"] },
+      "exposure": "internal",
+      "locations": [
+        { "file": "Informix-demo-3.csproj", "line": 12, "excerpt": "<PackageReference Include=\"MudBlazor\" Version=\"8.0.0\" />" }
+      ],
+      "evidence": "Declared packages: MudBlazor 8.0.0, Microsoft.EntityFrameworkCore.Sqlite 10.0.0, QuestPDF 2024.12.0, Serilog.AspNetCore 9.0.0, SQLitePCLRaw 3.0.4. No CI step runs a vulnerability check. This audit had no advisory source available, so the packages were NOT checked against a vulnerability database - their status is unknown, not clean.",
+      "risk": "A vulnerable dependency would go unnoticed until it was exploited. This is a continuous risk, not a point-in-time one - a package that is clean today may have an advisory published tomorrow.",
+      "impact": { "confidentiality": "Medium", "integrity": "Medium", "availability": "Medium" },
+      "discovered": true,
+      "remediated": false,
+      "remediation": {
+        "summary": "Add a dependency vulnerability gate to CI and fail the build on High or Critical advisories.",
+        "nonBreaking": true,
+        "breakingChange": false,
+        "effort": "S",
+        "planned": true,
+        "steps": [
+          "Add 'dotnet list package --vulnerable --include-transitive' as a CI step and fail on High/Critical.",
+          "Enable Dependabot or Renovate so upgrade PRs are raised automatically.",
+          "Run the check once now, out of band, to establish the current position - this audit could not."
+        ],
+        "codeAfter": "- name: Dependency vulnerability check\n  run: |\n    dotnet list package --vulnerable --include-transitive 2>&1 | tee vuln.txt\n    ! grep -qE 'High|Critical' vuln.txt",
+        "language": "yaml"
+      },
+      "verification": "The CI step runs on every build and is green; deliberately pinning a known-vulnerable package version turns it red."
+    }
+  ],
+
+  "roadmap": [
+    { "phase": 1, "name": "Access control", "findings": ["S-1", "S-2"], "effort": "M", "scoreAfter": 78,
+      "rationale": "The largest single risk reduction available. S-1 subsumes most of S-2: once the global policy is in place, anonymous enumeration is gone, and only the multi-tenant scoping remains." },
+    { "phase": 2, "name": "Configuration hardening", "findings": ["S-4", "S-7"], "effort": "S", "scoreAfter": 84,
+      "rationale": "Hours of work for real points. The report-only soak in S-4 means the CSP change carries no deployment risk." },
+    { "phase": 3, "name": "Data and input", "findings": ["S-5", "S-6"], "effort": "M", "scoreAfter": 89,
+      "rationale": "Closes the two gaps the migration exposed: the terminal no longer constrains field widths, and the data file is no longer on a controlled host." },
+    { "phase": 4, "name": "Operational", "findings": ["S-9"], "effort": "S", "scoreAfter": 90,
+      "rationale": "Makes the dependency position continuously visible rather than a point-in-time unknown." }
+  ],
+
+  "evidenceLog": [
+    { "check": "Authorization attributes", "ruleId": "DN-AUTHZ-01", "method": "grep", "query": "\\[Authorize", "result": "0 matches in 148 files", "conclusion": "Finding S-1" },
+    { "check": "Auth middleware registration", "ruleId": "DN-AUTHZ-02", "method": "grep", "query": "AddAuthentication|UseAuthorization", "result": "0 matches in Program.cs", "conclusion": "Finding S-1" },
+    { "check": "Raw SQL execution", "ruleId": "DN-INJ-01", "method": "grep", "query": "FromSqlRaw|ExecuteSqlRaw|CommandText", "result": "0 executed matches; 4 documentation strings in D4DemoService.cs", "conclusion": "No injection sink - strength recorded" },
+    { "check": "XSS sinks", "ruleId": "DN-XSS-01", "method": "grep", "query": "MarkupString|Html\\.Raw", "result": "0 matches", "conclusion": "No XSS sink - strength recorded" },
+    { "check": "Security headers", "ruleId": "DN-CFG-02", "method": "grep", "query": "Content-Security-Policy|X-Content-Type-Options", "result": "Present in SecurityHeadersMiddleware.cs", "conclusion": "Baseline present; CSP weak - Finding S-4" },
+    { "check": "Validation annotations", "ruleId": "DN-VAL-01", "method": "grep", "query": "\\[Required\\]|\\[StringLength|AbstractValidator<", "result": "0 matches", "conclusion": "Finding S-5" },
+    { "check": "Hard-coded secrets", "ruleId": "UNI-SEC-01", "method": "grep", "query": "password|secret|api_key assignment", "result": "0 real matches", "conclusion": "No secrets - strength recorded" },
+    { "check": "Dependency advisories", "ruleId": "DN-DEP-01", "method": "manifest parse", "query": "PackageReference", "result": "5 direct packages inventoried; NO advisory database reachable", "conclusion": "Not assessed - Finding S-9" }
+  ],
+
+  "cost": {
+    "source": "transcript",
+    "startedAt": "2026-09-09T14:02:11Z",
+    "finishedAt": "2026-09-09T14:19:48Z",
+    "byModel": [
+      {
+        "model": "claude-opus-5",
+        "priced": true,
+        "messages": 42,
+        "tokens": { "input": 1820, "cacheWrite5m": 96400, "cacheWrite1h": 0, "cacheRead": 1840220, "output": 58310, "total": 1996750 },
+        "rates":  { "input": 5.00, "cacheWrite5m": 6.25, "cacheWrite1h": 10.00, "cacheRead": 0.50, "output": 25.00 },
+        "costUSD": { "input": 0.0091, "cacheWrite5m": 0.6025, "cacheWrite1h": 0.0, "cacheRead": 0.9201, "output": 1.4578, "total": 2.9895 }
+      }
+    ],
+    "totals": { "totalTokens": 1996750, "totalCostUSD": 2.9895 },
+    "unpricedModels": 0,
+    "pricingVersion": "2026-06-24",
+    "note": "Measured from the session transcript; assistant messages deduplicated by message id. List rates only - excludes enterprise discounts, Batch API pricing and partner-platform rates."
+  },
+
+  "limitations": [
+    "Static analysis only. The application was not built, deployed, or exercised at runtime, so no finding here reflects observed behaviour.",
+    "Dependency advisories were NOT verified against a live vulnerability database - no advisory MCP server was configured and no network access was used. The dependency position is unknown, not clean. See S-9.",
+    "Infrastructure, network policy, WAF rules, reverse-proxy configuration and deployed secrets were out of scope; only files under the target path were examined.",
+    "The Informix 4GL source was not audited in this run (meta.migration.sourcePathAudited is null), so 'legacy-inherited' vs 'migration-introduced' classifications are inferred from the generated code alone.",
+    "Business-logic correctness was assessed only where intent was inferable from the code. Domain rules such as valid state transitions and pricing authority were not verified.",
+    "2,104 files were skipped as build output, minified web assets or binaries."
+  ]
+}
+</script>
+
+<div id="root"></div>
+
+<script>
+/* ============================================================================
+   Renderer. Reads the JSON block above and builds the report.
+   Authoring rule: the audit writes DATA, never markup. Everything below is
+   generic - it never needs to change per project.
+   ========================================================================= */
+(function () {
+  "use strict";
+
+  var DATA;
+  try {
+    DATA = JSON.parse(document.getElementById("audit-data").textContent);
+  } catch (err) {
+    document.getElementById("root").innerHTML =
+      '<div class="wrap"><div class="card" style="margin-top:40px">' +
+      '<h3>This report could not be rendered</h3>' +
+      '<p>The embedded findings JSON is not valid: <code></code></p>' +
+      '<p style="color:var(--text-muted)">Re-run the audit, or validate ' +
+      '<code>.security-audit/findings.json</code> before concatenating the report.</p>' +
+      '</div></div>';
+    document.querySelector("#root code").textContent = err.message;
+    return;
+  }
+
+  /* ---------------------------------------------------------------- utils */
+  var SEVS = ["Critical", "High", "Medium", "Low", "Info"];
+  var SEV_RANK = { Critical: 0, High: 1, Medium: 2, Low: 3, Info: 4 };
+
+  function esc(s) {
+    if (s === null || s === undefined) return "";
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+  function el(html) { var t = document.createElement("template"); t.innerHTML = html.trim(); return t.content; }
+  function arr(x) { return Array.isArray(x) ? x : []; }
+  function has(x) { return x !== null && x !== undefined && x !== ""; }
+  function num(n, d) { return (typeof n === "number" && isFinite(n)) ? n.toLocaleString(undefined, { maximumFractionDigits: d === undefined ? 0 : d }) : "-"; }
+  function money(n) {
+    if (typeof n !== "number" || !isFinite(n)) return "-";
+    if (n > 0 && n < 0.01) return "&lt;$0.01";   /* inserted as HTML - must be an entity */
+    return "$" + n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  var meta     = DATA.meta || {};
+  var scores   = DATA.scores || {};
+  var findings = arr(DATA.findings).slice().sort(function (a, b) {
+    var d = (SEV_RANK[a.severity] === undefined ? 9 : SEV_RANK[a.severity]) -
+            (SEV_RANK[b.severity] === undefined ? 9 : SEV_RANK[b.severity]);
+    return d !== 0 ? d : String(a.id).localeCompare(String(b.id), undefined, { numeric: true });
+  });
+  var hasProjected = !!(scores.projected && has(scores.projected.score));
+
+  var out = [];
+
+  /* ---------------------------------------------------------------- header */
+  var title = (meta.projectName || "Untitled project") + " - Security analysis report";
+  document.title = title;
+
+  out.push(
+    '<header class="masthead"><div class="wrap">' +
+      '<button class="theme-toggle no-print" id="themeBtn" type="button">Theme</button>' +
+      '<h1>' + esc(title) + '</h1>' +
+      '<p class="sub">' + (arr(meta.standards).map(esc).join(" &middot; ") || "Static application security review") + '</p>' +
+      '<dl class="meta-grid">' +
+        kv("Target path", meta.targetPath) +
+        kv("Date", meta.scanDate) +
+        kv("Analyst", meta.analyst) +
+        kv("Depth", meta.depth) +
+        kv("Stack", [arr(meta.stack && meta.stack.languages).join(", "),
+                     arr(meta.stack && meta.stack.frameworks).join(", ")].filter(Boolean).join(" / ")) +
+        kv("Scope", meta.inventory
+            ? num(meta.inventory.filesScanned) + " files scanned"
+              + (has(meta.inventory.linesScanned) ? ", " + num(meta.inventory.linesScanned) + " lines" : "")
+              + (has(meta.inventory.filesSkipped) ? " (" + num(meta.inventory.filesSkipped) + " skipped)" : "")
+            : null) +
+        (meta.migration && meta.migration.isMigration
+          ? kv("Migration", esc(meta.migration.sourceLanguage || "?") + " &rarr; " + esc(meta.migration.targetLanguage || "?"))
+          : "") +
+      '</dl>' +
+    '</div></header>'
+  );
+
+  function kv(k, v) {
+    if (!has(v)) return "";
+    return "<div><dt>" + esc(k) + "</dt><dd>" + v + "</dd></div>";
+  }
+
+  out.push('<div class="wrap">');
+
+  /* ---------------------------------------------------------------- 1. scores */
+  out.push('<section id="dashboard"><h2>Score dashboard</h2><div class="score-row">');
+  out.push(scoreTile("Current", scores.current));
+  if (hasProjected) {
+    out.push(scoreTile("Projected after remediation", scores.projected));
+    var up = (scores.projected.score || 0) - ((scores.current && scores.current.score) || 0);
+    out.push(
+      '<div class="tile"><div class="label">Uplift</div>' +
+      '<div class="hero"><span class="uplift">' + (up >= 0 ? "+" : "") + up + '</span></div>' +
+      '<div class="foot">points, if the full plan is applied and verified</div></div>'
+    );
+  }
+  out.push('</div>');
+
+  var counts = {};
+  SEVS.forEach(function (s) { counts[s] = 0; });
+  findings.forEach(function (f) { if (counts[f.severity] !== undefined) counts[f.severity]++; });
+  out.push('<div class="sev-row">');
+  SEVS.forEach(function (s) {
+    out.push(
+      '<div class="sev-tile" data-sev="' + s + '">' +
+        '<div class="n">' + counts[s] + '</div>' +
+        '<div class="k">' + sevIcon(s) + esc(s) + '</div>' +
+      '</div>'
+    );
+  });
+  out.push('</div></section>');
+
+  function scoreTile(label, s) {
+    if (!s) return "";
+    return '<div class="tile">' +
+      '<div class="label">' + esc(label) + '</div>' +
+      '<div class="hero">' + esc(String(s.score)) + '<span class="of"> / 100</span></div>' +
+      '<div class="foot">' +
+        (has(s.grade) ? '<span class="grade">' + esc(s.grade) + '</span>' : '') +
+        (has(s.posture) ? '<span class="posture" data-band="' + esc(s.posture) + '"><span class="dot"></span>' + esc(s.posture) + '</span>' : '') +
+      '</div></div>';
+  }
+  /* Status colour never carries meaning alone - every severity ships an icon + label. */
+  function sevIcon(s) {
+    var g = { Critical: "&#9679;", High: "&#9650;", Medium: "&#9632;", Low: "&#9670;", Info: "&#9675;" };
+    return '<span aria-hidden="true" style="color:' + sevVar(s) + '">' + (g[s] || "&#9675;") + '</span>';
+  }
+  function sevVar(s) {
+    return { Critical: "var(--st-critical)", High: "var(--st-serious)", Medium: "var(--st-warning)",
+             Low: "var(--series-1)", Info: "var(--text-muted)" }[s] || "var(--text-muted)";
+  }
+
+  /* ---------------------------------------------------------------- 2. categories */
+  var cats = arr(scores.categories);
+  if (cats.length) {
+    out.push('<section id="categories"><h2>Category breakdown</h2><div class="card">');
+    out.push(
+      '<div class="legend">' +
+        '<span class="key"><span class="swatch" style="background:var(--series-1)"></span>Current</span>' +
+        (hasProjected ? '<span class="key"><span class="swatch" style="background:var(--series-2)"></span>Projected</span>' : '') +
+        '<span class="key" style="color:var(--text-muted)">Scored 0-100 within each category; weight sets its share of the overall score.</span>' +
+      '</div>'
+    );
+    out.push('<div class="bars">');
+    cats.forEach(function (c) {
+      var assessed = c.assessed !== false && has(c.current);
+      out.push(
+        '<div class="bar-row' + (assessed ? '' : ' na') + '">' +
+          '<div class="cat">' + esc(c.name || c.key) +
+            '<span class="wt">' + esc(c.owasp || "") + (has(c.weight) ? " &middot; weight " + c.weight : "") + '</span>' +
+          '</div>' +
+          '<div class="bar-stack">' +
+            (assessed
+              ? bar("s1", c.current, "Current " + c.current + "/100") +
+                (hasProjected && has(c.projected) ? bar("s2", c.projected, "Projected " + c.projected + "/100") : "")
+              : '<div class="bar-track"></div><div class="bar-na">Not assessed</div>') +
+          '</div>' +
+        '</div>'
+      );
+    });
+    out.push('</div>');
+
+    /* Table view - required relief for sub-3:1 marks, and the print-friendly form. */
+    out.push('<div class="table-scroll" style="margin-top:22px"><table><thead><tr>' +
+      '<th>Category</th><th>OWASP</th><th class="num">Weight</th><th class="num">Current</th>' +
+      (hasProjected ? '<th class="num">Projected</th>' : '') + '<th>Note</th></tr></thead><tbody>');
+    cats.forEach(function (c) {
+      out.push('<tr><td>' + esc(c.name || c.key) + '</td><td>' + esc(c.owasp || "") + '</td>' +
+        '<td class="num">' + (has(c.weight) ? c.weight : "-") + '</td>' +
+        '<td class="num">' + (has(c.current) ? c.current : "n/a") + '</td>' +
+        (hasProjected ? '<td class="num">' + (has(c.projected) ? c.projected : "n/a") + '</td>' : '') +
+        '<td>' + esc(c.note || "") + '</td></tr>');
+    });
+    out.push('</tbody></table></div>');
+    if (has(scores.profile)) {
+      out.push('<p style="margin:14px 0 0;font-size:12.5px;color:var(--text-muted)">Weighting profile: <code>' +
+        esc(scores.profile) + '</code>. Categories marked <em>not assessed</em> are excluded from the weighted average and their weight is redistributed.</p>');
+    }
+    out.push('</div></section>');
+  }
+
+  /* Value sits in its own column, so a 95-wide bar cannot push its label off the row. */
+  function bar(cls, v, tip) {
+    var w = Math.max(0, Math.min(100, Number(v) || 0));
+    return '<div class="bar-line" title="' + esc(tip) + '">' +
+             '<div class="bar-track">' +
+               '<div class="bar-fill ' + cls + '" style="width:' + w + '%"></div>' +
+             '</div>' +
+             '<div class="bar-val">' + esc(String(v)) + '</div>' +
+           '</div>';
+  }
+
+  /* ---------------------------------------------------------------- 3. strengths */
+  var strengths = arr(DATA.strengths);
+  if (strengths.length) {
+    out.push('<section id="strengths"><h2>Controls verified present</h2><div class="card"><ul class="plain">');
+    strengths.forEach(function (s) {
+      out.push('<li><strong>' + esc(s.title) + '</strong>' + (has(s.detail) ? " &mdash; " + esc(s.detail) : "") + '</li>');
+    });
+    out.push('</ul><p style="margin:12px 0 0;font-size:12.5px;color:var(--text-muted)">' +
+      'These are what the category scores are built on, and what remediation must not regress.</p></div></section>');
+  }
+
+  /* ---------------------------------------------------------------- 4. findings table */
+  out.push('<section id="summary"><h2>Findings summary</h2>');
+  if (!findings.length) {
+    out.push('<div class="card"><p class="empty">No findings were recorded for this run. Check the Limitations section for what was and was not assessed.</p></div>');
+  } else {
+    out.push('<div class="card"><div class="table-scroll"><table><thead><tr>' +
+      '<th class="id">#</th><th>Finding</th><th>Severity</th><th>Conf.</th><th>OWASP</th><th>Location</th>' +
+      '<th class="ctr">Found</th><th class="ctr">Fixed</th></tr></thead><tbody>');
+    findings.forEach(function (f) {
+      var loc = arr(f.locations)[0];
+      var more = arr(f.locations).length - 1;
+      out.push('<tr>' +
+        '<td class="id"><a href="#' + esc(f.id) + '" style="font-family:var(--mono);font-size:12px">' + esc(f.id) + '</a></td>' +
+        '<td>' + esc(f.title) + '</td>' +
+        '<td><span class="sev-pill" data-sev="' + esc(f.severity) + '">' + sevIcon(f.severity) + esc(f.severity) + '</span></td>' +
+        '<td><span class="conf" data-c="' + esc(f.confidence) + '">' + esc(f.confidence || "-") + '</span></td>' +
+        '<td>' + esc((f.owasp || "").split(" ")[0]) + '</td>' +
+        '<td style="font-family:var(--mono);font-size:11.5px">' +
+          (loc ? esc(loc.file) + (has(loc.line) ? ":" + loc.line : "") : "-") +
+          (more > 0 ? ' <span style="color:var(--text-muted)">+' + more + '</span>' : '') + '</td>' +
+        '<td class="ctr">' + (f.discovered === false ? "" : "&#10003;") + '</td>' +
+        '<td class="ctr"><input class="chk" type="checkbox" data-fid="' + esc(f.id) + '"' + (f.remediated ? " checked" : "") + ' aria-label="Mark ' + esc(f.id) + ' remediated"></td>' +
+      '</tr>');
+    });
+    out.push('</tbody></table></div>' +
+      '<p style="margin:12px 0 0;font-size:12.5px;color:var(--text-muted)">' +
+      'The <strong>Fixed</strong> column is a working checklist &mdash; tick items as they land. ' +
+      'Your ticks are stored in this browser only; re-run the audit to produce a verified post-remediation score.</p></div>');
+  }
+  out.push('</section>');
+
+  /* ---------------------------------------------------------------- 5. detail */
+  if (findings.length) {
+    out.push('<section id="detail"><h2>Detailed findings</h2>');
+    out.push(
+      '<div class="toolbar no-print">' +
+        '<input type="search" id="q" placeholder="Search findings, files, CWE...">' +
+        SEVS.map(function (s) { return '<button class="chip" type="button" data-sev="' + s + '" aria-pressed="false">' + s + '</button>'; }).join("") +
+        '<button class="btn" id="expandAll" type="button">Expand all</button>' +
+        '<button class="btn" id="copyList" type="button">Copy checklist</button>' +
+        '<span class="count-note" id="countNote"></span>' +
+      '</div>'
+    );
+    out.push('<div id="findingList">');
+    findings.forEach(function (f) { out.push(findingCard(f)); });
+    out.push('</div></section>');
+  }
+
+  function findingCard(f) {
+    var r = f.remediation || {};
+    var s = [];
+    s.push('<details class="finding' + (f.remediated ? " done" : "") + '" id="' + esc(f.id) + '" data-sev="' + esc(f.severity) + '"' +
+           ' data-blob="' + esc([f.id, f.title, f.evidence, f.risk, arr(f.cwe).join(" "),
+                                 arr(f.locations).map(function (l) { return l.file; }).join(" "),
+                                 f.owasp, f.category].filter(Boolean).join(" ").toLowerCase()) + '">');
+    s.push('<summary>' +
+      '<span class="fid">' + esc(f.id) + '</span>' +
+      '<span class="sev-pill" data-sev="' + esc(f.severity) + '">' + sevIcon(f.severity) + esc(f.severity) + '</span>' +
+      '<span><span class="ftitle">' + esc(f.title) + '</span>' +
+        '<span class="fmeta">' + esc(f.owasp || "") +
+          (has(f.confidence) ? " &middot; " + esc(f.confidence) : "") +
+          (has(f.origin) ? " &middot; " + esc(f.origin) : "") +
+          (has(f.exposure) ? " &middot; " + esc(f.exposure) : "") +
+        '</span></span>' +
+      '<span class="chev">&#9654;</span>' +
+      '</summary>');
+
+    s.push('<div class="fbody">');
+
+    /* identifiers */
+    var tags = [];
+    arr(f.cwe).forEach(function (c) { tags.push('<span class="tag">' + esc(c) + '</span>'); });
+    arr(f.attack).forEach(function (a) { tags.push('<span class="tag">ATT&amp;CK ' + esc(a.id) + (has(a.name) ? " " + esc(a.name) : "") + '</span>'); });
+    if (f.nist) {
+      arr(f.nist.ssdf).forEach(function (n) { tags.push('<span class="tag">SSDF ' + esc(n) + '</span>'); });
+      arr(f.nist.sp80053).forEach(function (n) { tags.push('<span class="tag">800-53 ' + esc(n) + '</span>'); });
+    }
+    if (has(f.owaspCurrent)) tags.push('<span class="tag">' + esc(f.owaspCurrent) + '</span>');
+    if (tags.length) s.push('<div class="fblock"><div class="h">Standards</div>' + tags.join("") + '</div>');
+
+    if (has(f.risk))     s.push('<div class="fblock"><div class="h">Risk</div><p style="margin:0">' + esc(f.risk) + '</p></div>');
+    if (has(f.evidence)) s.push('<div class="fblock"><div class="h">Evidence</div><p style="margin:0">' + esc(f.evidence) + '</p></div>');
+
+    var locs = arr(f.locations);
+    if (locs.length) {
+      s.push('<div class="fblock"><div class="h">Location' + (locs.length > 1 ? "s (" + locs.length + ")" : "") + '</div>');
+      locs.forEach(function (l) {
+        s.push('<div class="loc"><span class="path">' + esc(l.file) + '</span>' +
+               (has(l.line) ? '<span style="color:var(--text-muted)">:' + esc(l.line) + '</span>' : '') +
+               (has(l.excerpt) ? '<span class="code">' + esc(l.excerpt) + '</span>' : '') + '</div>');
+      });
+      s.push('</div>');
+    }
+
+    if (f.impact) {
+      s.push('<div class="fblock"><div class="h">Impact</div><div class="kv">' +
+        ["confidentiality", "integrity", "availability"].map(function (k) {
+          return has(f.impact[k]) ? '<div><div class="k">' + k + '</div>' + esc(f.impact[k]) + '</div>' : "";
+        }).join("") + '</div></div>');
+    }
+
+    /* remediation */
+    if (r && (has(r.summary) || arr(r.steps).length)) {
+      s.push('<div class="fblock"><div class="h">Remediation' +
+        (r.breakingChange ? ' <span class="badge-br">Breaking change</span>'
+                          : (r.nonBreaking ? ' <span class="badge-nb">Non-breaking</span>' : '')) +
+        (has(r.effort) ? ' <span class="tag">Effort ' + esc(r.effort) + '</span>' : '') +
+        '</div>');
+      if (r.breakingChange) {
+        s.push('<div class="warnbox" style="margin-bottom:10px"><strong>This fix changes behaviour.</strong> ' +
+               'Schedule it deliberately &mdash; it is not a drop-in change.</div>');
+      }
+      if (has(r.summary)) s.push('<p style="margin:0 0 10px">' + esc(r.summary) + '</p>');
+      if (arr(r.steps).length) {
+        s.push('<ol class="steps">' + arr(r.steps).map(function (x) { return "<li>" + esc(x) + "</li>"; }).join("") + '</ol>');
+      }
+      if (has(r.codeBefore) || has(r.codeAfter)) {
+        s.push('<div class="diff" style="margin-top:12px">' +
+          (has(r.codeBefore) ? '<div class="before"><div class="lbl">Before</div><pre class="code">' + esc(r.codeBefore) + '</pre></div>' : '') +
+          (has(r.codeAfter)  ? '<div class="after"><div class="lbl">After</div><pre class="code">'  + esc(r.codeAfter)  + '</pre></div>' : '') +
+        '</div>');
+      }
+      s.push('</div>');
+    }
+
+    if (has(f.verification)) {
+      s.push('<div class="fblock"><div class="h">Verification</div><div class="verify">' + esc(f.verification) + '</div></div>');
+    }
+
+    var refs = arr(f.references);
+    if (refs.length) {
+      s.push('<div class="fblock"><div class="h">References</div><ul class="plain">' +
+        refs.map(function (x) {
+          return "<li>" + (has(x.url) ? '<a href="' + esc(x.url) + '" rel="noreferrer noopener">' + esc(x.label || x.url) + "</a>"
+                                      : esc(x.label || "")) + "</li>";
+        }).join("") + '</ul></div>');
+    }
+
+    s.push('</div></details>');
+    return s.join("");
+  }
+
+  /* ---------------------------------------------------------------- 6. roadmap */
+  var roadmap = arr(DATA.roadmap);
+  if (roadmap.length) {
+    out.push('<section id="roadmap"><h2>Remediation roadmap</h2><div class="card">');
+    roadmap.forEach(function (p) {
+      out.push('<div class="phase">' +
+        '<div class="pnum">' + esc(p.phase) + '</div>' +
+        '<div><h3 style="font-size:15px;margin:0 0 4px">' + esc(p.name) + '</h3>' +
+          '<div style="font-size:12.5px;color:var(--text-muted)">' +
+            arr(p.findings).map(function (id) { return '<a href="#' + esc(id) + '" class="tag">' + esc(id) + '</a>'; }).join("") +
+            (has(p.effort) ? ' <span class="tag">Effort ' + esc(p.effort) + '</span>' : '') +
+          '</div>' +
+          (has(p.rationale) ? '<p style="margin:8px 0 0;font-size:13.5px">' + esc(p.rationale) + '</p>' : '') +
+        '</div>' +
+        (has(p.scoreAfter) ? '<div class="pafter">&rarr; ' + esc(p.scoreAfter) + ' / 100</div>' : '<div></div>') +
+      '</div>');
+    });
+    out.push('</div></section>');
+  }
+
+  /* ---------------------------------------------------------------- 7. cost */
+  var cost = DATA.cost;
+  if (cost) {
+    out.push('<section id="cost"><h2>Analysis cost</h2><div class="card">');
+    if (cost.source === "estimate") {
+      out.push('<div class="cost-caveat"><strong>Estimated, not measured.</strong> ' +
+        'Usage records were unavailable for this run, so the figures below are an approximation and should not be used for billing reconciliation.</div>');
+    } else if (cost.source === "unavailable") {
+      out.push('<p class="empty">Cost was not collected for this run.</p>');
+    }
+
+    if (cost.source !== "unavailable" && arr(cost.byModel).length) {
+      out.push('<div class="table-scroll"><table><thead><tr>' +
+        '<th>Model</th><th class="num">Msgs</th><th class="num">Input</th><th class="num">Cache write</th>' +
+        '<th class="num">Cache read</th><th class="num">Output</th><th class="num">Total tokens</th><th class="num">Cost</th>' +
+        '</tr></thead><tbody>');
+      arr(cost.byModel).forEach(function (m) {
+        var t = m.tokens || {};
+        var cw = (t.cacheWrite5m || 0) + (t.cacheWrite1h || 0);
+        out.push('<tr>' +
+          '<td style="font-family:var(--mono);font-size:12px">' + esc(m.model) +
+            (m.priced === false ? ' <span class="tag">unpriced</span>' : '') + '</td>' +
+          '<td class="num">' + num(m.messages) + '</td>' +
+          '<td class="num">' + num(t.input) + '</td>' +
+          '<td class="num">' + num(cw) + '</td>' +
+          '<td class="num">' + num(t.cacheRead) + '</td>' +
+          '<td class="num">' + num(t.output) + '</td>' +
+          '<td class="num">' + num(t.total) + '</td>' +
+          '<td class="num">' + (m.costUSD ? money(m.costUSD.total) : "-") + '</td>' +
+        '</tr>');
+      });
+      out.push('</tbody></table></div>');
+
+      var tot = cost.totals || {};
+      out.push('<div class="cost-total">' +
+        '<div><div class="label" style="font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted)">Total tokens</div>' +
+          '<div class="big">' + num(tot.totalTokens) + '</div></div>' +
+        '<div><div class="label" style="font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted)">Estimated cost</div>' +
+          '<div class="big">' + money(tot.totalCostUSD) + '</div></div>' +
+        (has(cost.startedAt) && has(cost.finishedAt)
+          ? '<div><div class="label" style="font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted)">Window</div>' +
+            '<div style="font-size:13px;color:var(--text-secondary);padding-top:8px">' + esc(cost.startedAt) + ' &rarr; ' + esc(cost.finishedAt) + '</div></div>'
+          : '') +
+      '</div>');
+
+      out.push('<p style="margin:14px 0 0;font-size:12.5px;color:var(--text-muted)">' +
+        (has(cost.note) ? esc(cost.note) + " " : "") +
+        (cost.unpricedModels ? '<strong>' + cost.unpricedModels + ' model(s) had no published rate and are excluded from the dollar total.</strong> ' : '') +
+        'Cache reads are billed well below input rate, which is why total tokens and total cost do not move together.' +
+        '</p>');
+    }
+    out.push('</div></section>');
+  }
+
+  /* ---------------------------------------------------------------- 8. evidence */
+  var ev = arr(DATA.evidenceLog);
+  if (ev.length) {
+    out.push('<section id="evidence"><h2>Scan evidence</h2><div class="card">' +
+      '<p style="font-size:13px;color:var(--text-secondary);margin-top:0">' +
+      'What was checked, so that "no finding" can be told apart from "not checked".</p>' +
+      '<div class="table-scroll"><table><thead><tr><th>Check</th><th>Rule</th><th>Query</th><th>Result</th><th>Conclusion</th></tr></thead><tbody>');
+    ev.forEach(function (e) {
+      out.push('<tr><td>' + esc(e.check) + '</td>' +
+        '<td style="font-family:var(--mono);font-size:11.5px">' + esc(e.ruleId || "") + '</td>' +
+        '<td style="font-family:var(--mono);font-size:11.5px">' + esc(e.query || "") + '</td>' +
+        '<td>' + esc(e.result || "") + '</td><td>' + esc(e.conclusion || "") + '</td></tr>');
+    });
+    out.push('</tbody></table></div></div></section>');
+  }
+
+  /* ---------------------------------------------------------------- 9. limitations */
+  var lim = arr(DATA.limitations);
+  if (lim.length) {
+    out.push('<section id="limitations"><h2>Limitations &amp; scope</h2><div class="card"><ul class="plain">' +
+      lim.map(function (l) { return "<li>" + esc(l) + "</li>"; }).join("") +
+      '</ul></div></section>');
+  }
+
+  out.push('<footer class="foot">' +
+    esc(title) + (has(meta.scanDate) ? " &middot; " + esc(meta.scanDate) : "") +
+    ' &middot; Generated by the <code>security-audit</code> skill. ' +
+    'Static analysis findings require human confirmation before they are treated as accepted risk or closed.' +
+    '</footer>');
+
+  out.push('</div>');
+  document.getElementById("root").innerHTML = out.join("");
+
+  /* ---------------------------------------------------------------- behaviour */
+  var store = {
+    get: function (k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+    set: function (k, v) { try { localStorage.setItem(k, v); } catch (e) { /* file:// or blocked - fine */ } }
+  };
+
+  /* theme toggle - wins over the OS setting in both directions */
+  var btn = document.getElementById("themeBtn");
+  var saved = store.get("sa-theme");
+  if (saved) document.documentElement.setAttribute("data-theme", saved);
+  if (btn) btn.addEventListener("click", function () {
+    var cur = document.documentElement.getAttribute("data-theme");
+    if (!cur) cur = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    var next = cur === "dark" ? "light" : "dark";
+    document.documentElement.setAttribute("data-theme", next);
+    store.set("sa-theme", next);
+  });
+
+  /* remediated checkboxes */
+  var key = "sa-fixed:" + (meta.projectName || "") + ":" + (meta.scanDate || "");
+  var fixed = {};
+  try { fixed = JSON.parse(store.get(key) || "{}"); } catch (e) { fixed = {}; }
+  document.querySelectorAll(".chk").forEach(function (cb) {
+    var id = cb.getAttribute("data-fid");
+    if (fixed[id]) cb.checked = true;
+    applyFixed(id, cb.checked);
+    cb.addEventListener("change", function () {
+      fixed[id] = cb.checked;
+      store.set(key, JSON.stringify(fixed));
+      applyFixed(id, cb.checked);
+    });
+  });
+  function applyFixed(id, on) {
+    var card = document.getElementById(id);
+    if (card) card.classList.toggle("done", !!on);
+  }
+
+  /* filters */
+  var q = document.getElementById("q");
+  var chips = Array.prototype.slice.call(document.querySelectorAll(".chip[data-sev]"));
+  var cards = Array.prototype.slice.call(document.querySelectorAll(".finding"));
+  var note = document.getElementById("countNote");
+
+  function applyFilter() {
+    var term = (q && q.value || "").trim().toLowerCase();
+    var on = chips.filter(function (c) { return c.getAttribute("aria-pressed") === "true"; })
+                  .map(function (c) { return c.getAttribute("data-sev"); });
+    var shown = 0;
+    cards.forEach(function (card) {
+      var okSev = !on.length || on.indexOf(card.getAttribute("data-sev")) !== -1;
+      var okTxt = !term || (card.getAttribute("data-blob") || "").indexOf(term) !== -1;
+      var vis = okSev && okTxt;
+      card.hidden = !vis;
+      if (vis) shown++;
+    });
+    if (note) note.textContent = shown + " of " + cards.length + " shown";
+  }
+  chips.forEach(function (c) {
+    c.addEventListener("click", function () {
+      c.setAttribute("aria-pressed", c.getAttribute("aria-pressed") === "true" ? "false" : "true");
+      applyFilter();
+    });
+  });
+  if (q) q.addEventListener("input", applyFilter);
+  applyFilter();
+
+  var exp = document.getElementById("expandAll");
+  if (exp) exp.addEventListener("click", function () {
+    var anyClosed = cards.some(function (c) { return !c.open && !c.hidden; });
+    cards.forEach(function (c) { if (!c.hidden) c.open = anyClosed; });
+    exp.textContent = anyClosed ? "Collapse all" : "Expand all";
+  });
+
+  /* copy checklist as markdown */
+  var copy = document.getElementById("copyList");
+  if (copy) copy.addEventListener("click", function () {
+    var lines = ["# " + title, ""];
+    findings.forEach(function (f) {
+      var cb = document.querySelector('.chk[data-fid="' + f.id + '"]');
+      var done = cb && cb.checked;
+      var loc = arr(f.locations)[0];
+      lines.push("- [" + (done ? "x" : " ") + "] **" + f.id + "** (" + f.severity + ", " + (f.owasp || "") + ") " +
+                 f.title + (loc ? "  \n      " + loc.file + (has(loc.line) ? ":" + loc.line : "") : ""));
+    });
+    var text = lines.join("\n");
+    function fallback() {
+      var ta = document.createElement("textarea");
+      ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta); ta.select();
+      try { document.execCommand("copy"); } catch (e) {}
+      document.body.removeChild(ta);
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, function () { fallback(); done(); });
+    } else { fallback(); done(); }
+    function done() {
+      copy.textContent = "Copied";
+      setTimeout(function () { copy.textContent = "Copy checklist"; }, 1600);
+    }
+  });
+
+  /* expand a finding when linked to directly */
+  window.addEventListener("hashchange", openHash);
+  openHash();
+  function openHash() {
+    var h = location.hash.slice(1);
+    if (!h) return;
+    var t = document.getElementById(h);
+    if (t && t.tagName === "DETAILS") { t.hidden = false; t.open = true; t.scrollIntoView({ block: "start" }); }
+  }
+
+  /* print: expand everything so nothing is hidden in the PDF */
+  window.addEventListener("beforeprint", function () {
+    cards.forEach(function (c) { c.open = true; });
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,103 @@
+{
+  "_comment": [
+    "Golden corpus for the rule packs. Run with: python tests/run_corpus.py",
+    "",
+    "  expect  - these rule ids MUST produce at least one hit on this file.",
+    "  reject  - these rule ids MUST produce ZERO hits on this file.",
+    "",
+    "The 'reject' cases are the ones that matter. Detection regressions are loud; precision",
+    "regressions are silent, and a rule that flags parameterized SQL teaches engineers to",
+    "ignore the whole report. Every new rule should arrive with at least one reject case",
+    "drawn from its own falsePositiveHints field.",
+    "",
+    "Note: this exercises the rule pass only - the deterministic sensor. It cannot test the",
+    "triage layer, which is where reachability and severity are actually decided."
+  ],
+  "cases": [
+    {
+      "label": "dotnet: concatenated SQL is injection",
+      "file": "dotnet/sqli-concat.cs",
+      "expect": ["UNI-INJ-01", "DN-INJ-01"],
+      "reject": []
+    },
+    {
+      "label": "dotnet: parameterized SQL is NOT injection",
+      "file": "dotnet/sqli-parameterized.cs",
+      "expect": [],
+      "reject": ["UNI-INJ-01"]
+    },
+    {
+      "label": "dotnet: MarkupString is an XSS sink",
+      "file": "dotnet/xss-markupstring.razor",
+      "expect": ["DN-XSS-01"],
+      "reject": []
+    },
+    {
+      "label": "dotnet: plain interpolation is auto-encoded, not a sink",
+      "file": "dotnet/xss-safe.razor",
+      "expect": [],
+      "reject": ["DN-XSS-01"]
+    },
+    {
+      "label": "dotnet: [Authorize] present satisfies the absence check",
+      "file": "dotnet/authorize-present.cs",
+      "expect": ["DN-AUTHZ-01"],
+      "reject": []
+    },
+    {
+      "label": "python: f-string SQL is injection",
+      "file": "python/sqli-fstring.py",
+      "expect": ["PY-INJ-01"],
+      "reject": []
+    },
+    {
+      "label": "python: %s parameter binding is NOT injection",
+      "file": "python/sqli-params.py",
+      "expect": [],
+      "reject": ["PY-INJ-01"]
+    },
+    {
+      "label": "python: pickle.loads / yaml.load are unsafe deserialization",
+      "file": "python/deser-unsafe.py",
+      "expect": ["PY-DES-01", "UNI-INJ-04"],
+      "reject": []
+    },
+    {
+      "label": "python: json.loads / yaml.safe_load are safe",
+      "file": "python/deser-safe.py",
+      "expect": [],
+      "reject": ["PY-DES-01", "UNI-INJ-04"]
+    },
+    {
+      "label": "javascript: innerHTML assignment is an XSS sink",
+      "file": "javascript/xss-innerhtml.js",
+      "expect": ["JS-XSS-01"],
+      "reject": []
+    },
+    {
+      "label": "javascript: textContent is not a sink",
+      "file": "javascript/xss-textcontent.js",
+      "expect": [],
+      "reject": ["JS-XSS-01"]
+    },
+    {
+      "label": "universal: a real-looking credential is a secret",
+      "file": "universal/secret-real.txt",
+      "expect": ["UNI-SEC-01"],
+      "reject": []
+    },
+    {
+      "label": "universal: templated and empty values are NOT secrets",
+      "file": "universal/secret-placeholder.txt",
+      "expect": [],
+      "reject": ["UNI-SEC-01"]
+    },
+    {
+      "label": "universal: wordy placeholders DO fire (sensor cannot judge; triage drops them)",
+      "file": "universal/secret-wordy-placeholder.txt",
+      "expect": ["UNI-SEC-01"],
+      "reject": [],
+      "note": "Documents the division of labour honestly. A regex cannot separate 'your-api-key-here' from a real credential without a wordlist, and a wordlist would be incomplete while creating false confidence. The sensor fires; triage is responsible for dropping it."
+    }
+  ]
+}

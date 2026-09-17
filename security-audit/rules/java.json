@@ -1,0 +1,145 @@
+{
+  "pack": "java",
+  "appliesTo": ["java", "kotlin", "spring", "jakarta"],
+  "rules": [
+    {
+      "id": "JV-INJ-01",
+      "title": "JDBC statement built by concatenation",
+      "pattern": "(createStatement\\(\\)|Statement\\s+\\w+\\s*=)[\\s\\S]{0,200}(executeQuery|executeUpdate|execute)\\s*\\(\\s*[\"'][^\"']*\"\\s*\\+",
+      "patternAlt": "(executeQuery|executeUpdate)\\s*\\(\\s*[\"'][^\"']*[\"']\\s*\\+",
+      "glob": "**/*.{java,kt}",
+      "severity": "Critical",
+      "owasp": "A03:2021",
+      "cwe": ["CWE-89"],
+      "attack": ["T1190"],
+      "why": "Statement with a concatenated query is textbook SQL injection; PreparedStatement with bound parameters is the fix.",
+      "falsePositiveHints": "PreparedStatement with ? placeholders and setXxx binding is safe even if the SQL text is built from constants."
+    },
+    {
+      "id": "JV-INJ-02",
+      "title": "JPA/Hibernate query built from a variable",
+      "pattern": "(createQuery|createNativeQuery|createSQLQuery|@Query\\s*\\()\\s*\\(?\\s*[\"'][^\"']*[\"']\\s*\\+",
+      "glob": "**/*.{java,kt}",
+      "severity": "Critical",
+      "owasp": "A03:2021",
+      "cwe": ["CWE-89"],
+      "why": "HQL/JPQL injection is exploitable in the same way as SQL injection and often overlooked because an ORM is in use.",
+      "falsePositiveHints": "Named (:param) or positional (?1) parameters are safe. Concatenating an ORDER BY column name is still a finding unless allow-listed."
+    },
+    {
+      "id": "JV-SPR-01",
+      "title": "Spring Security CSRF protection disabled",
+      "pattern": "csrf\\s*\\(\\s*\\)\\s*\\.\\s*disable\\s*\\(\\s*\\)|\\.csrf\\s*\\([^)\\n]{0,80}disable|csrf[^\\n]{0,40}disable\\s*\\(",
+      "glob": "**/*.{java,kt}",
+      "severity": "High",
+      "owasp": "A01:2021",
+      "cwe": ["CWE-352"],
+      "attack": ["T1189"],
+      "why": "Disabling CSRF on a cookie-authenticated application allows cross-site state changes.",
+      "falsePositiveHints": "Legitimate for stateless JWT/bearer APIs that never authenticate via cookies. Confirm the authentication model first."
+    },
+    {
+      "id": "JV-SPR-02",
+      "title": "Spring Security permits all requests",
+      "pattern": "permitAll\\(\\)|anonymous\\(\\)\\.|\\.antMatchers\\(\\s*[\"']/\\*\\*[\"']\\s*\\)\\s*\\.permitAll|requestMatchers\\(\\s*[\"']/\\*\\*[\"']\\s*\\)\\s*\\.permitAll",
+      "glob": "**/*.{java,kt}",
+      "severity": "High",
+      "owasp": "A01:2021",
+      "cwe": ["CWE-862"],
+      "why": "A permitAll over /** makes the whole application anonymous regardless of other rules.",
+      "falsePositiveHints": "permitAll on login, static assets, health and error paths is correct. The finding is a broad wildcard, or permitAll ordered before the authenticated matchers."
+    },
+    {
+      "id": "JV-SPR-03",
+      "title": "No method-level or HTTP-level authorization found",
+      "pattern": "@PreAuthorize|@PostAuthorize|@Secured|@RolesAllowed|authorizeHttpRequests|authorizeRequests|\\.authenticated\\(\\)",
+      "glob": "**/*.{java,kt}",
+      "expect": "present-required",
+      "precondition": "Spring/Jakarta web application.",
+      "severity": "Critical",
+      "owasp": "A01:2021",
+      "cwe": ["CWE-862"],
+      "why": "No authorization expressions anywhere means the application relies on obscurity for access control.",
+      "falsePositiveHints": "Check for a servlet filter or gateway performing the check before concluding."
+    },
+    {
+      "id": "JV-DES-01",
+      "title": "Java native deserialization of external data",
+      "pattern": "ObjectInputStream|readObject\\s*\\(\\s*\\)|XMLDecoder|SerializationUtils\\.deserialize|readUnshared",
+      "glob": "**/*.{java,kt}",
+      "severity": "Critical",
+      "owasp": "A08:2021",
+      "cwe": ["CWE-502"],
+      "attack": ["T1059"],
+      "why": "Java deserialization gadget chains give remote code execution and are widely weaponized.",
+      "falsePositiveHints": "Deserializing data the app wrote to a trusted store is lower risk. An ObjectInputFilter / look-ahead filter closes it."
+    },
+    {
+      "id": "JV-XXE-01",
+      "title": "XML factory used without external-entity hardening",
+      "pattern": "DocumentBuilderFactory\\.newInstance|SAXParserFactory\\.newInstance|XMLInputFactory\\.newInstance|TransformerFactory\\.newInstance|SchemaFactory\\.newInstance",
+      "glob": "**/*.{java,kt}",
+      "severity": "Medium",
+      "owasp": "A05:2021",
+      "cwe": ["CWE-611"],
+      "why": "Default JAXP settings historically resolve external entities, enabling file disclosure and SSRF.",
+      "falsePositiveHints": "Closed if setFeature(\"http://apache.org/xml/features/disallow-doctype-decl\", true) or XMLConstants.FEATURE_SECURE_PROCESSING is set on the same factory. Read the following lines."
+    },
+    {
+      "id": "JV-EXP-01",
+      "title": "Expression-language or template evaluation over dynamic input",
+      "pattern": "SpelExpressionParser|parseExpression\\s*\\(|ScriptEngineManager|GroovyShell|Velocity\\.evaluate|freemarker[^\\n]*Template\\s*\\(|Ognl\\.",
+      "glob": "**/*.{java,kt}",
+      "severity": "Critical",
+      "owasp": "A03:2021",
+      "cwe": ["CWE-917", "CWE-94"],
+      "why": "SpEL/OGNL/Groovy evaluation of attacker-influenced strings is remote code execution.",
+      "falsePositiveHints": "Static, developer-authored expressions are fine. Trace whether any part comes from a request."
+    },
+    {
+      "id": "JV-CRY-01",
+      "title": "Password stored with a fast or unsalted hash",
+      "pattern": "MessageDigest\\.getInstance\\(\\s*[\"'](MD5|SHA-?1|SHA-?256)[\"']|NoOpPasswordEncoder|StandardPasswordEncoder",
+      "glob": "**/*.{java,kt}",
+      "severity": "High",
+      "owasp": "A02:2021",
+      "cwe": ["CWE-916", "CWE-327"],
+      "why": "General-purpose digests are far too fast for password storage; offline cracking is trivial. BCrypt/Argon2/PBKDF2 exist for this.",
+      "falsePositiveHints": "SHA-256 for a file checksum or HMAC is correct. Only password storage is a finding."
+    },
+    {
+      "id": "JV-ACT-01",
+      "title": "Spring Boot Actuator endpoints broadly exposed",
+      "pattern": "management\\.endpoints\\.web\\.exposure\\.include\\s*[:=]\\s*\\*|include:\\s*[\"']?\\*",
+      "glob": "**/{application,bootstrap}*.{yml,yaml,properties}",
+      "severity": "High",
+      "owasp": "A05:2021",
+      "cwe": ["CWE-200"],
+      "attack": ["T1082"],
+      "why": "Exposed actuators leak environment, configuration, heap dumps and in some versions allow shutdown or property mutation.",
+      "falsePositiveHints": "Acceptable only when the management port is bound to an internal interface and separately protected. Verify the port and security config."
+    },
+    {
+      "id": "JV-PTH-01",
+      "title": "Zip/archive entry extracted without path validation (Zip Slip)",
+      "pattern": "ZipEntry|TarArchiveEntry|getNextEntry\\(\\)",
+      "glob": "**/*.{java,kt}",
+      "severity": "High",
+      "owasp": "A01:2021",
+      "cwe": ["CWE-22"],
+      "why": "An archive entry named ../../etc/passwd escapes the extraction directory and overwrites arbitrary files.",
+      "falsePositiveHints": "Closed if the resolved target path is canonicalized and verified to start with the destination directory. Look for that check."
+    },
+    {
+      "id": "JV-DEP-01",
+      "title": "Declared dependencies to inventory for advisory checking",
+      "pattern": "<artifactId>|implementation\\s*[\\('\"]|compile\\s*[\\('\"]|api\\s*[\\('\"]",
+      "glob": "**/{pom.xml,build.gradle,build.gradle.kts}",
+      "severity": "Info",
+      "owasp": "A06:2021",
+      "cwe": ["CWE-1104"],
+      "why": "Collects the dependency inventory for the Step 4 advisory check.",
+      "falsePositiveHints": "Not a finding on its own."
+    }
+  ]
+}

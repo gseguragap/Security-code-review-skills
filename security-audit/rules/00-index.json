@@ -1,0 +1,77 @@
+{
+  "schemaVersion": "1.0",
+  "updated": "2026-09-09",
+  "notes": [
+    "Patterns are ripgrep (Rust regex) syntax, used with the Grep tool: pattern + glob + path=ROOT.",
+    "Rust regex has NO lookaround and NO backreferences. Every pattern here avoids both.",
+    "Literal braces must be escaped: interface\\{\\}.",
+    "'expect' is 'absent-is-ok' (hits are candidates) or 'present-required' (ZERO hits is the candidate).",
+    "'present-required' rules must only be evaluated when their 'precondition' holds - otherwise they",
+    "produce nonsense (e.g. demanding [Authorize] in a console app).",
+    "Severity here is a PRIOR, not a verdict. Triage sets the final severity."
+  ],
+  "severityOrder": ["Critical", "High", "Medium", "Low", "Info"],
+  "packs": [
+    {
+      "file": "universal.json",
+      "appliesTo": ["*"],
+      "always": true,
+      "description": "Secrets, weak crypto, dangerous primitives, PII in logs, TLS bypass - language independent."
+    },
+    {
+      "file": "dotnet.json",
+      "appliesTo": ["csharp", "dotnet", "aspnetcore", "blazor", "razor"],
+      "detect": ["**/*.csproj", "**/*.sln", "**/*.cs", "**/*.razor", "**/*.cshtml"],
+      "description": ".NET / ASP.NET Core / Blazor / Razor / EF Core."
+    },
+    {
+      "file": "java.json",
+      "appliesTo": ["java", "kotlin", "spring", "jakarta"],
+      "detect": ["pom.xml", "build.gradle", "build.gradle.kts", "**/*.java", "**/*.kt"],
+      "description": "Java / Kotlin / Spring / Jakarta EE / Hibernate."
+    },
+    {
+      "file": "javascript.json",
+      "appliesTo": ["javascript", "typescript", "node", "express", "react", "angular", "vue"],
+      "detect": ["package.json", "**/*.js", "**/*.ts", "**/*.jsx", "**/*.tsx"],
+      "description": "Node.js, Express, and browser-side JS/TS frameworks."
+    },
+    {
+      "file": "python.json",
+      "appliesTo": ["python", "django", "flask", "fastapi"],
+      "detect": ["requirements.txt", "pyproject.toml", "Pipfile", "**/*.py"],
+      "description": "Python, Django, Flask, FastAPI, SQLAlchemy."
+    },
+    {
+      "file": "php-go-ruby.json",
+      "appliesTo": ["php", "laravel", "go", "golang", "ruby", "rails"],
+      "detect": ["composer.json", "go.mod", "Gemfile", "**/*.php", "**/*.go", "**/*.rb"],
+      "description": "PHP/Laravel, Go, Ruby/Rails."
+    },
+    {
+      "file": "sql-legacy.json",
+      "appliesTo": ["sql", "plsql", "tsql", "cobol", "informix4gl", "vb6", "delphi", "rpg"],
+      "detect": ["**/*.sql", "**/*.pks", "**/*.pkb", "**/*.cbl", "**/*.cob", "**/*.4gl", "**/*.per", "**/*.vbp", "**/*.bas", "**/*.dpr", "**/*.pas"],
+      "description": "Stored procedures and legacy source languages. Relevant to modernization audits on BOTH sides of a migration - flaws present in the legacy source are frequently carried into the generated target."
+    },
+    {
+      "file": "config-iac.json",
+      "appliesTo": ["*"],
+      "always": true,
+      "detect": ["Dockerfile*", "docker-compose*.y*ml", "**/*.tf", "**/*.y*ml", "**/appsettings*.json", "**/web.config", "**/.env*", "**/*.properties"],
+      "description": "Container, IaC, CI and application configuration."
+    }
+  ],
+  "categories": {
+    "A01": "Broken Access Control",
+    "A02": "Cryptographic Failures",
+    "A03": "Injection",
+    "A04": "Insecure Design / Input Validation",
+    "A05": "Security Misconfiguration",
+    "A06": "Vulnerable and Outdated Components",
+    "A07": "Identification and Authentication Failures",
+    "A08": "Software and Data Integrity Failures",
+    "A09": "Security Logging and Monitoring Failures",
+    "A10": "Server-Side Request Forgery"
+  }
+}

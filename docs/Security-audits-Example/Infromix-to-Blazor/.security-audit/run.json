@@ -1,0 +1,51 @@
+{
+  "project": "Infromix-to-Blazor-2",
+  "legacyPath": "C:\\Users\\GilberthEliasSeguraD\\Documents\\Informix\\Informix source\\source",
+  "modernizedPath": "C:\\Users\\GilberthEliasSeguraD\\Documents\\GAP\\AI initiatives\\Informix-demo-3\\Informix-demo-3- code",
+  "outputFolder": "C:\\Users\\GilberthEliasSeguraD\\Documents\\Security-audits\\Infromix-to-Blazor-2",
+  "depth": "standard",
+  "started": "2026-09-16",
+  "finished": "2026-09-16",
+  "phases": {
+    "legacy": {
+      "status": "done",
+      "mode": "analyze",
+      "findings": 16,
+      "score": 56,
+      "grade": "F",
+      "posture": "Critical",
+      "report": "Infromix-to-Blazor-2 - Legacy - Security analysis report. - 2026-09-16.html",
+      "costTokens": 1337478,
+      "costUSD": 2.3018
+    },
+    "modernized": {
+      "status": "done",
+      "mode": "plan",
+      "findings": 17,
+      "score": 65,
+      "grade": "D",
+      "posture": "At Risk",
+      "projectedScore": 93,
+      "report": "Infromix-to-Blazor-2 - Modernized - Security analysis report. - 2026-09-16.html",
+      "costTokens": 3454643,
+      "costUSD": 4.3378
+    },
+    "comparison": {
+      "status": "done",
+      "comparisonDepth": "full",
+      "items": 26,
+      "buckets": { "inherited": 8, "introduced": 1, "newSurface": 9, "resolved": 8, "notComparable": 0 },
+      "coverageRisks": 1,
+      "scoreDelta": 9,
+      "report": "Infromix-to-Blazor-2 - Comparison - Security analysis report. - 2026-09-16.html",
+      "costTokens": 1928407,
+      "costUSD": 3.4075
+    }
+  },
+  "cost": {
+    "source": "transcript",
+    "partial": false,
+    "totalTokens": 6720528,
+    "totalCostUSD": 10.0471
+  }
+}

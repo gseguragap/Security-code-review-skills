@@ -1,0 +1,145 @@
+{
+  "pack": "javascript",
+  "appliesTo": ["javascript", "typescript", "node", "express", "react", "angular", "vue"],
+  "rules": [
+    {
+      "id": "JS-XSS-01",
+      "title": "HTML injected into the DOM without sanitization",
+      "pattern": "dangerouslySetInnerHTML|\\.innerHTML\\s*=|\\.outerHTML\\s*=|insertAdjacentHTML\\s*\\(|document\\.write\\s*\\(|v-html\\s*=|\\[innerHTML\\]\\s*=|bypassSecurityTrust(Html|Script|Url|ResourceUrl)",
+      "glob": "**/*.{js,jsx,ts,tsx,vue,svelte,html}",
+      "severity": "High",
+      "owasp": "A03:2021",
+      "cwe": ["CWE-79"],
+      "attack": ["T1059.007"],
+      "why": "These sinks bypass the framework's automatic escaping; untrusted content reaching them executes as script.",
+      "falsePositiveHints": "Closed when the value passes through DOMPurify or an equivalent sanitizer immediately before the sink, or is a compile-time literal. Trace the value."
+    },
+    {
+      "id": "JS-INJ-01",
+      "title": "Dynamic code evaluation",
+      "pattern": "\\beval\\s*\\(|new Function\\s*\\(|setTimeout\\s*\\(\\s*[\"'`]|setInterval\\s*\\(\\s*[\"'`]|vm\\.runIn(New|This)Context",
+      "glob": "**/*.{js,jsx,ts,tsx,mjs,cjs}",
+      "severity": "High",
+      "owasp": "A03:2021",
+      "cwe": ["CWE-95"],
+      "why": "Evaluating request-influenced strings is remote code execution on the server or in the victim's browser.",
+      "falsePositiveHints": "Ignore RegExp.prototype.exec (a regex match, not evaluation) and eval over hard-coded literals."
+    },
+    {
+      "id": "JS-INJ-02",
+      "title": "Shell command executed from Node",
+      "pattern": "child_process|\\bexec\\s*\\(|execSync\\s*\\(|spawn\\s*\\(|spawnSync\\s*\\(|shelljs",
+      "glob": "**/*.{js,ts,mjs,cjs}",
+      "severity": "High",
+      "owasp": "A03:2021",
+      "cwe": ["CWE-78"],
+      "attack": ["T1059"],
+      "why": "exec() runs through a shell; any interpolated request value becomes a command.",
+      "falsePositiveHints": "execFile/spawn with an argument ARRAY and shell:false is the safe form and not a finding. exec() with a template literal is."
+    },
+    {
+      "id": "JS-INJ-03",
+      "title": "NoSQL query built from a raw request object",
+      "pattern": "(find|findOne|update|updateOne|deleteOne|deleteMany|findOneAndUpdate|aggregate)\\s*\\(\\s*(req\\.(body|query|params)|\\{[^}]*req\\.(body|query|params))|\\$where\\s*:",
+      "glob": "**/*.{js,ts,mjs,cjs}",
+      "severity": "High",
+      "owasp": "A03:2021",
+      "cwe": ["CWE-943"],
+      "why": "Passing a request object straight into a query lets a caller submit operators such as {\"$ne\": null} or {\"$gt\": \"\"} to bypass filters, including authentication.",
+      "falsePositiveHints": "Closed when fields are explicitly picked and cast, or a schema validator (Joi/Zod/express-validator) runs first."
+    },
+    {
+      "id": "JS-AUTHZ-01",
+      "title": "No authentication or authorization middleware detected",
+      "pattern": "passport|express-jwt|jsonwebtoken|requireAuth|isAuthenticated|ensureLoggedIn|@UseGuards|AuthGuard|next-auth|authenticate\\(",
+      "glob": "**/*.{js,ts,mjs,cjs}",
+      "expect": "present-required",
+      "precondition": "Server-side application exposing HTTP routes.",
+      "severity": "Critical",
+      "owasp": "A01:2021",
+      "cwe": ["CWE-306"],
+      "why": "An HTTP API with no authentication layer is fully anonymous.",
+      "falsePositiveHints": "Auth may be handled by an API gateway or reverse proxy. Verify rather than assume; state the assumption if unverifiable."
+    },
+    {
+      "id": "JS-CFG-01",
+      "title": "Permissive CORS configuration",
+      "pattern": "cors\\(\\s*\\)|origin\\s*:\\s*[\"'`]\\*[\"'`]|origin\\s*:\\s*true|Access-Control-Allow-Origin[\"'`]?\\s*[,:]\\s*[\"'`]\\*",
+      "glob": "**/*.{js,ts,mjs,cjs}",
+      "severity": "Medium",
+      "owasp": "A05:2021",
+      "cwe": ["CWE-942"],
+      "why": "cors() with no options allows every origin. Combined with credentials it exposes authenticated responses to any site.",
+      "falsePositiveHints": "Severity rises to High when credentials:true is also present, and falls to Low for a genuinely public read-only API."
+    },
+    {
+      "id": "JS-CFG-02",
+      "title": "Security headers middleware absent",
+      "pattern": "helmet\\(|Content-Security-Policy|contentSecurityPolicy|X-Content-Type-Options",
+      "glob": "**/*.{js,ts,mjs,cjs}",
+      "expect": "present-required",
+      "precondition": "Express/Koa/Fastify/Nest HTTP server.",
+      "severity": "Medium",
+      "owasp": "A05:2021",
+      "cwe": ["CWE-693"],
+      "why": "Without CSP, nosniff, frame-ancestors and HSTS the browser applies no defense-in-depth for the app.",
+      "falsePositiveHints": "May be set at the CDN or proxy. Verify."
+    },
+    {
+      "id": "JS-AUTH-01",
+      "title": "JWT verification weakened or absent",
+      "pattern": "jwt\\.decode\\s*\\(|algorithms\\s*:\\s*\\[\\s*[\"'`]none|ignoreExpiration\\s*:\\s*true|verify\\s*:\\s*false|secretOrKey\\s*:\\s*[\"'][^\"']{1,15}[\"']",
+      "glob": "**/*.{js,ts,mjs,cjs}",
+      "severity": "Critical",
+      "owasp": "A07:2021",
+      "cwe": ["CWE-347"],
+      "attack": ["T1550.001"],
+      "why": "jwt.decode does not verify the signature - a forged token is accepted. 'none' algorithm and ignored expiry are equally fatal.",
+      "falsePositiveHints": "jwt.decode is acceptable for reading a token the app already verified in the same request. Confirm a verify() precedes it."
+    },
+    {
+      "id": "JS-SEC-01",
+      "title": "Session or cookie flags weakened",
+      "pattern": "httpOnly\\s*:\\s*false|secure\\s*:\\s*false|sameSite\\s*:\\s*[\"'`]none[\"'`]|resave\\s*:\\s*true[^\\n]*saveUninitialized\\s*:\\s*true",
+      "glob": "**/*.{js,ts,mjs,cjs}",
+      "severity": "High",
+      "owasp": "A07:2021",
+      "cwe": ["CWE-1004", "CWE-614"],
+      "why": "A session cookie without httpOnly is readable by injected script; without secure it travels in cleartext.",
+      "falsePositiveHints": "secure:false is expected in a local-development branch - confirm it is environment-gated."
+    },
+    {
+      "id": "JS-PROTO-01",
+      "title": "Recursive merge or dynamic property assignment (prototype pollution)",
+      "pattern": "Object\\.assign\\s*\\(\\s*\\{\\s*\\}\\s*,\\s*req\\.|_\\.merge\\s*\\(|_\\.defaultsDeep\\s*\\(|deepmerge\\s*\\(|\\[\\s*(key|prop|k|name)\\s*\\]\\s*=",
+      "glob": "**/*.{js,ts,mjs,cjs}",
+      "severity": "Medium",
+      "owasp": "A08:2021",
+      "cwe": ["CWE-1321"],
+      "why": "Merging attacker-controlled keys can set __proto__ and change behavior application-wide, sometimes reaching RCE.",
+      "falsePositiveHints": "Closed when __proto__/constructor/prototype keys are rejected, Object.create(null) is used, or the source is trusted."
+    },
+    {
+      "id": "JS-SSRF-01",
+      "title": "Outbound request built from request data",
+      "pattern": "(axios|fetch|got|request|superagent|http\\.get|https\\.get)\\s*\\(\\s*[^)\\n]{0,80}(req\\.(body|query|params)|\\$\\{)",
+      "glob": "**/*.{js,ts,mjs,cjs}",
+      "severity": "High",
+      "owasp": "A10:2021",
+      "cwe": ["CWE-918"],
+      "why": "SSRF reaches internal services and the cloud metadata endpoint from inside the perimeter.",
+      "falsePositiveHints": "Closed if the host is fixed and only the path varies, or the URL is checked against a host allow-list."
+    },
+    {
+      "id": "JS-DEP-01",
+      "title": "Declared dependencies to inventory for advisory checking",
+      "pattern": "\"(dependencies|devDependencies|peerDependencies)\"\\s*:",
+      "glob": "**/package.json",
+      "severity": "Info",
+      "owasp": "A06:2021",
+      "cwe": ["CWE-1104"],
+      "why": "Collects the dependency inventory for the Step 4 advisory check.",
+      "falsePositiveHints": "Not a finding on its own. Note whether a lockfile is committed - its absence is itself a supply-chain weakness (A08)."
+    }
+  ]
+}

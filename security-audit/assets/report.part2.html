@@ -1,0 +1,586 @@
+</script>
+
+<div id="root"></div>
+
+<script>
+/* ============================================================================
+   Renderer. Reads the JSON block above and builds the report.
+   Authoring rule: the audit writes DATA, never markup. Everything below is
+   generic - it never needs to change per project.
+   ========================================================================= */
+(function () {
+  "use strict";
+
+  var DATA;
+  try {
+    DATA = JSON.parse(document.getElementById("audit-data").textContent);
+  } catch (err) {
+    document.getElementById("root").innerHTML =
+      '<div class="wrap"><div class="card" style="margin-top:40px">' +
+      '<h3>This report could not be rendered</h3>' +
+      '<p>The embedded findings JSON is not valid: <code></code></p>' +
+      '<p style="color:var(--text-muted)">Re-run the audit, or validate ' +
+      '<code>.security-audit/findings.json</code> before concatenating the report.</p>' +
+      '</div></div>';
+    document.querySelector("#root code").textContent = err.message;
+    return;
+  }
+
+  /* ---------------------------------------------------------------- utils */
+  var SEVS = ["Critical", "High", "Medium", "Low", "Info"];
+  var SEV_RANK = { Critical: 0, High: 1, Medium: 2, Low: 3, Info: 4 };
+
+  function esc(s) {
+    if (s === null || s === undefined) return "";
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+  function el(html) { var t = document.createElement("template"); t.innerHTML = html.trim(); return t.content; }
+  function arr(x) { return Array.isArray(x) ? x : []; }
+  function has(x) { return x !== null && x !== undefined && x !== ""; }
+  function num(n, d) { return (typeof n === "number" && isFinite(n)) ? n.toLocaleString(undefined, { maximumFractionDigits: d === undefined ? 0 : d }) : "-"; }
+  function money(n) {
+    if (typeof n !== "number" || !isFinite(n)) return "-";
+    if (n > 0 && n < 0.01) return "&lt;$0.01";   /* inserted as HTML - must be an entity */
+    return "$" + n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  var meta     = DATA.meta || {};
+  var scores   = DATA.scores || {};
+  var findings = arr(DATA.findings).slice().sort(function (a, b) {
+    var d = (SEV_RANK[a.severity] === undefined ? 9 : SEV_RANK[a.severity]) -
+            (SEV_RANK[b.severity] === undefined ? 9 : SEV_RANK[b.severity]);
+    return d !== 0 ? d : String(a.id).localeCompare(String(b.id), undefined, { numeric: true });
+  });
+  var hasProjected = !!(scores.projected && has(scores.projected.score));
+
+  var out = [];
+
+  /* ---------------------------------------------------------------- header */
+  var variant = has(meta.variantLabel) ? meta.variantLabel
+              : (has(meta.variant) && meta.variant !== "standalone" ? meta.variant : null);
+  var title = (meta.projectName || "Untitled project")
+            + (variant ? " (" + variant + ")" : "")
+            + " - Security analysis report";
+  document.title = title;
+
+  out.push(
+    '<header class="masthead"><div class="wrap">' +
+      '<button class="theme-toggle no-print" id="themeBtn" type="button">Theme</button>' +
+      '<h1>' + esc(title) + '</h1>' +
+      '<p class="sub">' + (arr(meta.standards).map(esc).join(" &middot; ") || "Static application security review") + '</p>' +
+      '<dl class="meta-grid">' +
+        (variant ? kv("Codebase", esc(variant)) : "") +
+        kv("Target path", meta.targetPath) +
+        kv("Date", meta.scanDate) +
+        kv("Analyst", meta.analyst) +
+        kv("Depth", meta.depth) +
+        kv("Stack", [arr(meta.stack && meta.stack.languages).join(", "),
+                     arr(meta.stack && meta.stack.frameworks).join(", ")].filter(Boolean).join(" / ")) +
+        kv("Scope", meta.inventory
+            ? num(meta.inventory.filesScanned) + " files scanned"
+              + (has(meta.inventory.linesScanned) ? ", " + num(meta.inventory.linesScanned) + " lines" : "")
+              + (has(meta.inventory.filesSkipped) ? " (" + num(meta.inventory.filesSkipped) + " skipped)" : "")
+            : null) +
+        (meta.migration && meta.migration.isMigration
+          ? kv("Migration", esc(meta.migration.sourceLanguage || "?") + " &rarr; " + esc(meta.migration.targetLanguage || "?"))
+          : "") +
+      '</dl>' +
+    '</div></header>'
+  );
+
+  function kv(k, v) {
+    if (!has(v)) return "";
+    return "<div><dt>" + esc(k) + "</dt><dd>" + v + "</dd></div>";
+  }
+
+  out.push('<div class="wrap">');
+
+  /* ---------------------------------------------------------------- 1. scores */
+  out.push('<section id="dashboard"><h2>Score dashboard</h2><div class="score-row">');
+  out.push(scoreTile("Current", scores.current));
+  if (hasProjected) {
+    out.push(scoreTile("Projected after remediation", scores.projected));
+    var up = (scores.projected.score || 0) - ((scores.current && scores.current.score) || 0);
+    out.push(
+      '<div class="tile"><div class="label">Uplift</div>' +
+      '<div class="hero"><span class="uplift">' + (up >= 0 ? "+" : "") + up + '</span></div>' +
+      '<div class="foot">points, if the full plan is applied and verified</div></div>'
+    );
+  }
+  out.push('</div>');
+
+  var counts = {};
+  SEVS.forEach(function (s) { counts[s] = 0; });
+  findings.forEach(function (f) { if (counts[f.severity] !== undefined) counts[f.severity]++; });
+  out.push('<div class="sev-row">');
+  SEVS.forEach(function (s) {
+    out.push(
+      '<div class="sev-tile" data-sev="' + s + '">' +
+        '<div class="n">' + counts[s] + '</div>' +
+        '<div class="k">' + sevIcon(s) + esc(s) + '</div>' +
+      '</div>'
+    );
+  });
+  out.push('</div></section>');
+
+  function scoreTile(label, s) {
+    if (!s) return "";
+    return '<div class="tile">' +
+      '<div class="label">' + esc(label) + '</div>' +
+      '<div class="hero">' + esc(String(s.score)) + '<span class="of"> / 100</span></div>' +
+      '<div class="foot">' +
+        (has(s.grade) ? '<span class="grade">' + esc(s.grade) + '</span>' : '') +
+        (has(s.posture) ? '<span class="posture" data-band="' + esc(s.posture) + '"><span class="dot"></span>' + esc(s.posture) + '</span>' : '') +
+      '</div></div>';
+  }
+  /* Status colour never carries meaning alone - every severity ships an icon + label. */
+  function sevIcon(s) {
+    var g = { Critical: "&#9679;", High: "&#9650;", Medium: "&#9632;", Low: "&#9670;", Info: "&#9675;" };
+    return '<span aria-hidden="true" style="color:' + sevVar(s) + '">' + (g[s] || "&#9675;") + '</span>';
+  }
+  function sevVar(s) {
+    return { Critical: "var(--st-critical)", High: "var(--st-serious)", Medium: "var(--st-warning)",
+             Low: "var(--series-1)", Info: "var(--text-muted)" }[s] || "var(--text-muted)";
+  }
+
+  /* ---------------------------------------------------------------- 2. categories */
+  var cats = arr(scores.categories);
+  if (cats.length) {
+    out.push('<section id="categories"><h2>Category breakdown</h2><div class="card">');
+    out.push(
+      '<div class="legend">' +
+        '<span class="key"><span class="swatch" style="background:var(--series-1)"></span>Current</span>' +
+        (hasProjected ? '<span class="key"><span class="swatch" style="background:var(--series-2)"></span>Projected</span>' : '') +
+        '<span class="key" style="color:var(--text-muted)">Scored 0-100 within each category; weight sets its share of the overall score.</span>' +
+      '</div>'
+    );
+    out.push('<div class="bars">');
+    cats.forEach(function (c) {
+      var assessed = c.assessed !== false && has(c.current);
+      out.push(
+        '<div class="bar-row' + (assessed ? '' : ' na') + '">' +
+          '<div class="cat">' + esc(c.name || c.key) +
+            '<span class="wt">' + esc(c.owasp || "") + (has(c.weight) ? " &middot; weight " + c.weight : "") + '</span>' +
+          '</div>' +
+          '<div class="bar-stack">' +
+            (assessed
+              ? bar("s1", c.current, "Current " + c.current + "/100") +
+                (hasProjected && has(c.projected) ? bar("s2", c.projected, "Projected " + c.projected + "/100") : "")
+              : '<div class="bar-track"></div><div class="bar-na">Not assessed</div>') +
+          '</div>' +
+        '</div>'
+      );
+    });
+    out.push('</div>');
+
+    /* Table view - required relief for sub-3:1 marks, and the print-friendly form. */
+    out.push('<div class="table-scroll" style="margin-top:22px"><table><thead><tr>' +
+      '<th>Category</th><th>OWASP</th><th class="num">Weight</th><th class="num">Current</th>' +
+      (hasProjected ? '<th class="num">Projected</th>' : '') + '<th>Note</th></tr></thead><tbody>');
+    cats.forEach(function (c) {
+      out.push('<tr><td>' + esc(c.name || c.key) + '</td><td>' + esc(c.owasp || "") + '</td>' +
+        '<td class="num">' + (has(c.weight) ? c.weight : "-") + '</td>' +
+        '<td class="num">' + (has(c.current) ? c.current : "n/a") + '</td>' +
+        (hasProjected ? '<td class="num">' + (has(c.projected) ? c.projected : "n/a") + '</td>' : '') +
+        '<td>' + esc(c.note || "") + '</td></tr>');
+    });
+    out.push('</tbody></table></div>');
+    if (has(scores.profile)) {
+      out.push('<p style="margin:14px 0 0;font-size:12.5px;color:var(--text-muted)">Weighting profile: <code>' +
+        esc(scores.profile) + '</code>. Categories marked <em>not assessed</em> are excluded from the weighted average and their weight is redistributed.</p>');
+    }
+    out.push('</div></section>');
+  }
+
+  /* Value sits in its own column, so a 95-wide bar cannot push its label off the row. */
+  function bar(cls, v, tip) {
+    var w = Math.max(0, Math.min(100, Number(v) || 0));
+    return '<div class="bar-line" title="' + esc(tip) + '">' +
+             '<div class="bar-track">' +
+               '<div class="bar-fill ' + cls + '" style="width:' + w + '%"></div>' +
+             '</div>' +
+             '<div class="bar-val">' + esc(String(v)) + '</div>' +
+           '</div>';
+  }
+
+  /* ---------------------------------------------------------------- 3. strengths */
+  var strengths = arr(DATA.strengths);
+  if (strengths.length) {
+    out.push('<section id="strengths"><h2>Controls verified present</h2><div class="card"><ul class="plain">');
+    strengths.forEach(function (s) {
+      out.push('<li><strong>' + esc(s.title) + '</strong>' + (has(s.detail) ? " &mdash; " + esc(s.detail) : "") + '</li>');
+    });
+    out.push('</ul><p style="margin:12px 0 0;font-size:12.5px;color:var(--text-muted)">' +
+      'These are what the category scores are built on, and what remediation must not regress.</p></div></section>');
+  }
+
+  /* ---------------------------------------------------------------- 4. findings table */
+  out.push('<section id="summary"><h2>Findings summary</h2>');
+  if (!findings.length) {
+    out.push('<div class="card"><p class="empty">No findings were recorded for this run. Check the Limitations section for what was and was not assessed.</p></div>');
+  } else {
+    out.push('<div class="card"><div class="table-scroll"><table><thead><tr>' +
+      '<th class="id">#</th><th>Finding</th><th>Severity</th><th>Conf.</th><th>OWASP</th><th>Location</th>' +
+      '<th class="ctr">Found</th><th class="ctr">Fixed</th></tr></thead><tbody>');
+    findings.forEach(function (f) {
+      var loc = arr(f.locations)[0];
+      var more = arr(f.locations).length - 1;
+      out.push('<tr>' +
+        '<td class="id"><a href="#' + esc(f.id) + '" style="font-family:var(--mono);font-size:12px">' + esc(f.id) + '</a></td>' +
+        '<td>' + esc(f.title) + '</td>' +
+        '<td><span class="sev-pill" data-sev="' + esc(f.severity) + '">' + sevIcon(f.severity) + esc(f.severity) + '</span></td>' +
+        '<td><span class="conf" data-c="' + esc(f.confidence) + '">' + esc(f.confidence || "-") + '</span></td>' +
+        '<td>' + esc((f.owasp || "").split(" ")[0]) + '</td>' +
+        '<td style="font-family:var(--mono);font-size:11.5px">' +
+          (loc ? esc(loc.file) + (has(loc.line) ? ":" + loc.line : "") : "-") +
+          (more > 0 ? ' <span style="color:var(--text-muted)">+' + more + '</span>' : '') + '</td>' +
+        '<td class="ctr">' + (f.discovered === false ? "" : "&#10003;") + '</td>' +
+        '<td class="ctr"><input class="chk" type="checkbox" data-fid="' + esc(f.id) + '"' + (f.remediated ? " checked" : "") + ' aria-label="Mark ' + esc(f.id) + ' remediated"></td>' +
+      '</tr>');
+    });
+    out.push('</tbody></table></div>' +
+      '<p style="margin:12px 0 0;font-size:12.5px;color:var(--text-muted)">' +
+      'The <strong>Fixed</strong> column is a working checklist &mdash; tick items as they land. ' +
+      'Your ticks are stored in this browser only; re-run the audit to produce a verified post-remediation score.</p></div>');
+  }
+  out.push('</section>');
+
+  /* ---------------------------------------------------------------- 5. detail */
+  if (findings.length) {
+    out.push('<section id="detail"><h2>Detailed findings</h2>');
+    out.push(
+      '<div class="toolbar no-print">' +
+        '<input type="search" id="q" placeholder="Search findings, files, CWE...">' +
+        SEVS.map(function (s) { return '<button class="chip" type="button" data-sev="' + s + '" aria-pressed="false">' + s + '</button>'; }).join("") +
+        '<button class="btn" id="expandAll" type="button">Expand all</button>' +
+        '<button class="btn" id="copyList" type="button">Copy checklist</button>' +
+        '<span class="count-note" id="countNote"></span>' +
+      '</div>'
+    );
+    out.push('<div id="findingList">');
+    findings.forEach(function (f) { out.push(findingCard(f)); });
+    out.push('</div></section>');
+  }
+
+  function findingCard(f) {
+    var r = f.remediation || {};
+    var s = [];
+    s.push('<details class="finding' + (f.remediated ? " done" : "") + '" id="' + esc(f.id) + '" data-sev="' + esc(f.severity) + '"' +
+           ' data-blob="' + esc([f.id, f.title, f.evidence, f.risk, arr(f.cwe).join(" "),
+                                 arr(f.locations).map(function (l) { return l.file; }).join(" "),
+                                 f.owasp, f.category].filter(Boolean).join(" ").toLowerCase()) + '">');
+    s.push('<summary>' +
+      '<span class="fid">' + esc(f.id) + '</span>' +
+      '<span class="sev-pill" data-sev="' + esc(f.severity) + '">' + sevIcon(f.severity) + esc(f.severity) + '</span>' +
+      '<span><span class="ftitle">' + esc(f.title) + '</span>' +
+        '<span class="fmeta">' + esc(f.owasp || "") +
+          (has(f.confidence) ? " &middot; " + esc(f.confidence) : "") +
+          (has(f.origin) ? " &middot; " + esc(f.origin) : "") +
+          (has(f.exposure) ? " &middot; " + esc(f.exposure) : "") +
+        '</span></span>' +
+      '<span class="chev">&#9654;</span>' +
+      '</summary>');
+
+    s.push('<div class="fbody">');
+
+    /* identifiers */
+    var tags = [];
+    arr(f.cwe).forEach(function (c) { tags.push('<span class="tag">' + esc(c) + '</span>'); });
+    arr(f.attack).forEach(function (a) { tags.push('<span class="tag">ATT&amp;CK ' + esc(a.id) + (has(a.name) ? " " + esc(a.name) : "") + '</span>'); });
+    if (f.nist) {
+      arr(f.nist.ssdf).forEach(function (n) { tags.push('<span class="tag">SSDF ' + esc(n) + '</span>'); });
+      arr(f.nist.sp80053).forEach(function (n) { tags.push('<span class="tag">800-53 ' + esc(n) + '</span>'); });
+    }
+    if (has(f.owaspCurrent)) tags.push('<span class="tag">' + esc(f.owaspCurrent) + '</span>');
+    if (tags.length) s.push('<div class="fblock"><div class="h">Standards</div>' + tags.join("") + '</div>');
+
+    if (has(f.risk))     s.push('<div class="fblock"><div class="h">Risk</div><p style="margin:0">' + esc(f.risk) + '</p></div>');
+    if (has(f.evidence)) s.push('<div class="fblock"><div class="h">Evidence</div><p style="margin:0">' + esc(f.evidence) + '</p></div>');
+
+    var locs = arr(f.locations);
+    if (locs.length) {
+      s.push('<div class="fblock"><div class="h">Location' + (locs.length > 1 ? "s (" + locs.length + ")" : "") + '</div>');
+      locs.forEach(function (l) {
+        s.push('<div class="loc"><span class="path">' + esc(l.file) + '</span>' +
+               (has(l.line) ? '<span style="color:var(--text-muted)">:' + esc(l.line) + '</span>' : '') +
+               (has(l.excerpt) ? '<span class="code">' + esc(l.excerpt) + '</span>' : '') + '</div>');
+      });
+      s.push('</div>');
+    }
+
+    if (f.impact) {
+      s.push('<div class="fblock"><div class="h">Impact</div><div class="kv">' +
+        ["confidentiality", "integrity", "availability"].map(function (k) {
+          return has(f.impact[k]) ? '<div><div class="k">' + k + '</div>' + esc(f.impact[k]) + '</div>' : "";
+        }).join("") + '</div></div>');
+    }
+
+    /* remediation */
+    if (r && (has(r.summary) || arr(r.steps).length)) {
+      s.push('<div class="fblock"><div class="h">Remediation' +
+        (r.breakingChange ? ' <span class="badge-br">Breaking change</span>'
+                          : (r.nonBreaking ? ' <span class="badge-nb">Non-breaking</span>' : '')) +
+        (has(r.effort) ? ' <span class="tag">Effort ' + esc(r.effort) + '</span>' : '') +
+        '</div>');
+      if (r.breakingChange) {
+        s.push('<div class="warnbox" style="margin-bottom:10px"><strong>This fix changes behaviour.</strong> ' +
+               'Schedule it deliberately &mdash; it is not a drop-in change.</div>');
+      }
+      if (has(r.summary)) s.push('<p style="margin:0 0 10px">' + esc(r.summary) + '</p>');
+      if (arr(r.steps).length) {
+        s.push('<ol class="steps">' + arr(r.steps).map(function (x) { return "<li>" + esc(x) + "</li>"; }).join("") + '</ol>');
+      }
+      if (has(r.codeBefore) || has(r.codeAfter)) {
+        s.push('<div class="diff" style="margin-top:12px">' +
+          (has(r.codeBefore) ? '<div class="before"><div class="lbl">Before</div><pre class="code">' + esc(r.codeBefore) + '</pre></div>' : '') +
+          (has(r.codeAfter)  ? '<div class="after"><div class="lbl">After</div><pre class="code">'  + esc(r.codeAfter)  + '</pre></div>' : '') +
+        '</div>');
+      }
+      s.push('</div>');
+    }
+
+    if (has(f.verification)) {
+      s.push('<div class="fblock"><div class="h">Verification</div><div class="verify">' + esc(f.verification) + '</div></div>');
+    }
+
+    var refs = arr(f.references);
+    if (refs.length) {
+      s.push('<div class="fblock"><div class="h">References</div><ul class="plain">' +
+        refs.map(function (x) {
+          return "<li>" + (has(x.url) ? '<a href="' + esc(x.url) + '" rel="noreferrer noopener">' + esc(x.label || x.url) + "</a>"
+                                      : esc(x.label || "")) + "</li>";
+        }).join("") + '</ul></div>');
+    }
+
+    s.push('</div></details>');
+    return s.join("");
+  }
+
+  /* ---------------------------------------------------------------- 6. roadmap */
+  var roadmap = arr(DATA.roadmap);
+  if (roadmap.length) {
+    out.push('<section id="roadmap"><h2>Remediation roadmap</h2><div class="card">');
+    roadmap.forEach(function (p) {
+      out.push('<div class="phase">' +
+        '<div class="pnum">' + esc(p.phase) + '</div>' +
+        '<div><h3 style="font-size:15px;margin:0 0 4px">' + esc(p.name) + '</h3>' +
+          '<div style="font-size:12.5px;color:var(--text-muted)">' +
+            arr(p.findings).map(function (id) { return '<a href="#' + esc(id) + '" class="tag">' + esc(id) + '</a>'; }).join("") +
+            (has(p.effort) ? ' <span class="tag">Effort ' + esc(p.effort) + '</span>' : '') +
+          '</div>' +
+          (has(p.rationale) ? '<p style="margin:8px 0 0;font-size:13.5px">' + esc(p.rationale) + '</p>' : '') +
+        '</div>' +
+        (has(p.scoreAfter) ? '<div class="pafter">&rarr; ' + esc(p.scoreAfter) + ' / 100</div>' : '<div></div>') +
+      '</div>');
+    });
+    out.push('</div></section>');
+  }
+
+  /* ---------------------------------------------------------------- 7. cost */
+  var cost = DATA.cost;
+  if (cost) {
+    out.push('<section id="cost"><h2>Analysis cost</h2><div class="card">');
+    if (cost.source === "estimate") {
+      out.push('<div class="cost-caveat"><strong>Estimated, not measured.</strong> ' +
+        'Usage records were unavailable for this run, so the figures below are an approximation and should not be used for billing reconciliation.</div>');
+    } else if (cost.source === "unavailable") {
+      out.push('<p class="empty">Cost was not collected for this run.</p>');
+    }
+
+    if (cost.source !== "unavailable" && arr(cost.byModel).length) {
+      out.push('<div class="table-scroll"><table><thead><tr>' +
+        '<th>Model</th><th class="num">Msgs</th><th class="num">Input</th><th class="num">Cache write</th>' +
+        '<th class="num">Cache read</th><th class="num">Output</th><th class="num">Total tokens</th><th class="num">Cost</th>' +
+        '</tr></thead><tbody>');
+      arr(cost.byModel).forEach(function (m) {
+        var t = m.tokens || {};
+        var cw = (t.cacheWrite5m || 0) + (t.cacheWrite1h || 0);
+        out.push('<tr>' +
+          '<td style="font-family:var(--mono);font-size:12px">' + esc(m.model) +
+            (m.priced === false ? ' <span class="tag">unpriced</span>' : '') + '</td>' +
+          '<td class="num">' + num(m.messages) + '</td>' +
+          '<td class="num">' + num(t.input) + '</td>' +
+          '<td class="num">' + num(cw) + '</td>' +
+          '<td class="num">' + num(t.cacheRead) + '</td>' +
+          '<td class="num">' + num(t.output) + '</td>' +
+          '<td class="num">' + num(t.total) + '</td>' +
+          '<td class="num">' + (m.costUSD ? money(m.costUSD.total) : "-") + '</td>' +
+        '</tr>');
+      });
+      out.push('</tbody></table></div>');
+
+      var tot = cost.totals || {};
+      out.push('<div class="cost-total">' +
+        '<div><div class="label" style="font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted)">Total tokens</div>' +
+          '<div class="big">' + num(tot.totalTokens) + '</div></div>' +
+        '<div><div class="label" style="font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted)">Estimated cost</div>' +
+          '<div class="big">' + money(tot.totalCostUSD) + '</div></div>' +
+        (has(cost.startedAt) && has(cost.finishedAt)
+          ? '<div><div class="label" style="font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted)">Window</div>' +
+            '<div style="font-size:13px;color:var(--text-secondary);padding-top:8px">' + esc(cost.startedAt) + ' &rarr; ' + esc(cost.finishedAt) + '</div></div>'
+          : '') +
+      '</div>');
+
+      out.push('<p style="margin:14px 0 0;font-size:12.5px;color:var(--text-muted)">' +
+        (has(cost.note) ? esc(cost.note) + " " : "") +
+        (cost.unpricedModels ? '<strong>' + cost.unpricedModels + ' model(s) had no published rate and are excluded from the dollar total.</strong> ' : '') +
+        'Cache reads are billed well below input rate, which is why total tokens and total cost do not move together.' +
+        '</p>');
+    }
+    out.push('</div></section>');
+  }
+
+  /* ---------------------------------------------------------------- 8. evidence */
+  var ev = arr(DATA.evidenceLog);
+  if (ev.length) {
+    out.push('<section id="evidence"><h2>Scan evidence</h2><div class="card">' +
+      '<p style="font-size:13px;color:var(--text-secondary);margin-top:0">' +
+      'What was checked, so that "no finding" can be told apart from "not checked".</p>' +
+      '<div class="table-scroll"><table><thead><tr><th>Check</th><th>Rule</th><th>Query</th><th>Result</th><th>Conclusion</th></tr></thead><tbody>');
+    ev.forEach(function (e) {
+      out.push('<tr><td>' + esc(e.check) + '</td>' +
+        '<td style="font-family:var(--mono);font-size:11.5px">' + esc(e.ruleId || "") + '</td>' +
+        '<td style="font-family:var(--mono);font-size:11.5px">' + esc(e.query || "") + '</td>' +
+        '<td>' + esc(e.result || "") + '</td><td>' + esc(e.conclusion || "") + '</td></tr>');
+    });
+    out.push('</tbody></table></div></div></section>');
+  }
+
+  /* ---------------------------------------------------------------- 9. limitations */
+  var lim = arr(DATA.limitations);
+  if (lim.length) {
+    out.push('<section id="limitations"><h2>Limitations &amp; scope</h2><div class="card"><ul class="plain">' +
+      lim.map(function (l) { return "<li>" + esc(l) + "</li>"; }).join("") +
+      '</ul></div></section>');
+  }
+
+  out.push('<footer class="foot">' +
+    esc(title) + (has(meta.scanDate) ? " &middot; " + esc(meta.scanDate) : "") +
+    ' &middot; Generated by the <code>security-audit</code> skill. ' +
+    'Static analysis findings require human confirmation before they are treated as accepted risk or closed.' +
+    '</footer>');
+
+  out.push('</div>');
+  document.getElementById("root").innerHTML = out.join("");
+
+  /* ---------------------------------------------------------------- behaviour */
+  var store = {
+    get: function (k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+    set: function (k, v) { try { localStorage.setItem(k, v); } catch (e) { /* file:// or blocked - fine */ } }
+  };
+
+  /* theme toggle - wins over the OS setting in both directions */
+  var btn = document.getElementById("themeBtn");
+  var saved = store.get("sa-theme");
+  if (saved) document.documentElement.setAttribute("data-theme", saved);
+  if (btn) btn.addEventListener("click", function () {
+    var cur = document.documentElement.getAttribute("data-theme");
+    if (!cur) cur = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    var next = cur === "dark" ? "light" : "dark";
+    document.documentElement.setAttribute("data-theme", next);
+    store.set("sa-theme", next);
+  });
+
+  /* remediated checkboxes */
+  var key = "sa-fixed:" + (meta.projectName || "") + ":" + (meta.scanDate || "");
+  var fixed = {};
+  try { fixed = JSON.parse(store.get(key) || "{}"); } catch (e) { fixed = {}; }
+  document.querySelectorAll(".chk").forEach(function (cb) {
+    var id = cb.getAttribute("data-fid");
+    if (fixed[id]) cb.checked = true;
+    applyFixed(id, cb.checked);
+    cb.addEventListener("change", function () {
+      fixed[id] = cb.checked;
+      store.set(key, JSON.stringify(fixed));
+      applyFixed(id, cb.checked);
+    });
+  });
+  function applyFixed(id, on) {
+    var card = document.getElementById(id);
+    if (card) card.classList.toggle("done", !!on);
+  }
+
+  /* filters */
+  var q = document.getElementById("q");
+  var chips = Array.prototype.slice.call(document.querySelectorAll(".chip[data-sev]"));
+  var cards = Array.prototype.slice.call(document.querySelectorAll(".finding"));
+  var note = document.getElementById("countNote");
+
+  function applyFilter() {
+    var term = (q && q.value || "").trim().toLowerCase();
+    var on = chips.filter(function (c) { return c.getAttribute("aria-pressed") === "true"; })
+                  .map(function (c) { return c.getAttribute("data-sev"); });
+    var shown = 0;
+    cards.forEach(function (card) {
+      var okSev = !on.length || on.indexOf(card.getAttribute("data-sev")) !== -1;
+      var okTxt = !term || (card.getAttribute("data-blob") || "").indexOf(term) !== -1;
+      var vis = okSev && okTxt;
+      card.hidden = !vis;
+      if (vis) shown++;
+    });
+    if (note) note.textContent = shown + " of " + cards.length + " shown";
+  }
+  chips.forEach(function (c) {
+    c.addEventListener("click", function () {
+      c.setAttribute("aria-pressed", c.getAttribute("aria-pressed") === "true" ? "false" : "true");
+      applyFilter();
+    });
+  });
+  if (q) q.addEventListener("input", applyFilter);
+  applyFilter();
+
+  var exp = document.getElementById("expandAll");
+  if (exp) exp.addEventListener("click", function () {
+    var anyClosed = cards.some(function (c) { return !c.open && !c.hidden; });
+    cards.forEach(function (c) { if (!c.hidden) c.open = anyClosed; });
+    exp.textContent = anyClosed ? "Collapse all" : "Expand all";
+  });
+
+  /* copy checklist as markdown */
+  var copy = document.getElementById("copyList");
+  if (copy) copy.addEventListener("click", function () {
+    var lines = ["# " + title, ""];
+    findings.forEach(function (f) {
+      var cb = document.querySelector('.chk[data-fid="' + f.id + '"]');
+      var done = cb && cb.checked;
+      var loc = arr(f.locations)[0];
+      lines.push("- [" + (done ? "x" : " ") + "] **" + f.id + "** (" + f.severity + ", " + (f.owasp || "") + ") " +
+                 f.title + (loc ? "  \n      " + loc.file + (has(loc.line) ? ":" + loc.line : "") : ""));
+    });
+    var text = lines.join("\n");
+    function fallback() {
+      var ta = document.createElement("textarea");
+      ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta); ta.select();
+      try { document.execCommand("copy"); } catch (e) {}
+      document.body.removeChild(ta);
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, function () { fallback(); done(); });
+    } else { fallback(); done(); }
+    function done() {
+      copy.textContent = "Copied";
+      setTimeout(function () { copy.textContent = "Copy checklist"; }, 1600);
+    }
+  });
+
+  /* expand a finding when linked to directly */
+  window.addEventListener("hashchange", openHash);
+  openHash();
+  function openHash() {
+    var h = location.hash.slice(1);
+    if (!h) return;
+    var t = document.getElementById(h);
+    if (t && t.tagName === "DETAILS") { t.hidden = false; t.open = true; t.scrollIntoView({ block: "start" }); }
+  }
+
+  /* print: expand everything so nothing is hidden in the PDF */
+  window.addEventListener("beforeprint", function () {
+    cards.forEach(function (c) { c.open = true; });
+  });
+})();
+</script>
+</body>
+</html>

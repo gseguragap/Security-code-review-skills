@@ -1,0 +1,42 @@
+{
+  "root": "C:\\Users\\GilberthEliasSeguraD\\Documents\\Informix\\Informix source\\source",
+  "filesTotal": 45,
+  "filesScanned": 38,
+  "filesSkipped": 7,
+  "linesScanned": 3847,
+  "byExtension": {
+    ".4gl": { "files": 6, "lines": 1256 },
+    ".4gl.main": { "files": 3, "lines": 1419 },
+    ".per": { "files": 11, "lines": 379 },
+    ".frm": { "files": 11, "lines": 234 },
+    ".src": { "files": 1, "lines": 412 },
+    ".properties": { "files": 1, "lines": 30 },
+    ".unl": { "files": 7, "lines": 156 },
+    ".ex": { "files": 1, "lines": 36 },
+    "no-extension-binary": { "files": 2, "lines": 396 },
+    ".4ge": { "files": 1, "lines": 220 }
+  },
+  "skipped": [
+    { "file": "d4_load", "reason": "compiled ELF 32-bit executable - not source; dynamic symbol table inspected for the dependency check only" },
+    { "file": "helpdemo", "reason": "compiled 4GL help message file (binary)" },
+    { "file": "demo4.4ge", "reason": "compiled 4GL p-code (binary, 166KB)" },
+    { "file": "custhelp.ex", "reason": "compiled help extract (binary header + text)" },
+    { "file": "*.frm", "reason": "compiled form binaries generated from the corresponding .per sources; .per read instead" }
+  ],
+  "stack": {
+    "languages": ["Informix 4GL"],
+    "frameworks": ["Informix 4GL runtime 7.30 (lib4gsh730.so)"],
+    "dataStores": ["Informix Dynamic Server - database stores7"],
+    "ui": "Character terminal (curses-style forms, MENU / INPUT / DISPLAY ARRAY)",
+    "auth": "None in application code. Identity is the OS/Informix session that launched the program.",
+    "entryPoints": [
+      "d4_main.4gl (MAIN - the demo4 application)",
+      "menu1.4gl.main (MAIN - customer/order search program)",
+      "ordmenu.4gl.main (MAIN - order entry program)",
+      "query1.4gl.main (MAIN - customer query-by-example program)"
+    ],
+    "configFiles": ["demo.properties"]
+  },
+  "rulePacks": ["universal.json", "sql-legacy.json", "config-iac.json"],
+  "depth": "standard"
+}

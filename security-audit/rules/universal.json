@@ -1,0 +1,219 @@
+{
+  "pack": "universal",
+  "appliesTo": ["*"],
+  "rules": [
+    {
+      "id": "UNI-SEC-01",
+      "title": "Hard-coded credential or API key assigned in source",
+      "pattern": "(?i)(password|passwd|pwd|secret|api[_-]?key|apikey|access[_-]?token|auth[_-]?token|client[_-]?secret|private[_-]?key)\\s*[:=]\\s*[\"'][^\"'{}$<>\\s]{6,}[\"']",
+      "glob": "!{**/node_modules/**,**/*.min.*,**/*.lock,**/*.map}",
+      "severity": "Critical",
+      "owasp": "A02:2021",
+      "cwe": ["CWE-798"],
+      "attack": ["T1552.001"],
+      "why": "A credential committed to source is a credential leaked to everyone with repo access, plus every copy of the repo and every CI log.",
+      "falsePositiveHints": "Very high FP rate. Exclude: placeholder values (CHANGEME, xxx, your-key-here, <secret>), test fixtures, config keys with empty strings, variable NAMES without values, and templated values (${VAR}, {{var}}, %ENV%). Confirm the value looks like a real secret before reporting."
+    },
+    {
+      "id": "UNI-SEC-02",
+      "title": "Private key material embedded in the repository",
+      "pattern": "-----BEGIN (RSA |EC |DSA |OPENSSH |PGP )?PRIVATE KEY-----",
+      "severity": "Critical",
+      "owasp": "A02:2021",
+      "cwe": ["CWE-798", "CWE-321"],
+      "attack": ["T1552.004"],
+      "why": "An embedded private key compromises every identity, signature or channel it protects.",
+      "falsePositiveHints": "Test fixtures still count as findings if the key is also used outside tests. A dedicated throwaway test key is Low, not Critical - but verify it is not referenced by production config."
+    },
+    {
+      "id": "UNI-SEC-03",
+      "title": "Cloud provider access key literal",
+      "pattern": "(AKIA[0-9A-Z]{16}|ASIA[0-9A-Z]{16}|AIza[0-9A-Za-z_-]{35}|sk-[A-Za-z0-9]{20,}|xox[baprs]-[0-9A-Za-z-]{10,}|ghp_[A-Za-z0-9]{36}|glpat-[A-Za-z0-9_-]{20})",
+      "severity": "Critical",
+      "owasp": "A02:2021",
+      "cwe": ["CWE-798"],
+      "attack": ["T1552.001"],
+      "why": "Provider-format keys are harvested by automated scanners within minutes of being pushed.",
+      "falsePositiveHints": "Check whether the value is obviously fake/redacted. If real-looking, this is Critical and the key must be treated as already compromised - rotation is the remediation, not deletion from source."
+    },
+    {
+      "id": "UNI-SEC-04",
+      "title": "Connection string with inline password",
+      "pattern": "(?i)(Server|Data Source|Host|Initial Catalog|Database)\\s*=[^\"'\\n]{1,120}(Password|Pwd)\\s*=\\s*[^;\"'\\s]{3,}",
+      "severity": "Critical",
+      "owasp": "A02:2021",
+      "cwe": ["CWE-798"],
+      "why": "Database credentials in config or source are the shortest path from repo access to data exfiltration.",
+      "falsePositiveHints": "Exclude templated placeholders and integrated-security connection strings."
+    },
+    {
+      "id": "UNI-CRY-01",
+      "title": "Broken or deprecated hash algorithm",
+      "pattern": "(?i)\\b(MD5|SHA1|SHA-1)\\b\\s*[\\(\\.]|(?i)(MD5|SHA1)(CryptoServiceProvider|Managed|\\.Create)",
+      "severity": "Medium",
+      "owasp": "A02:2021",
+      "cwe": ["CWE-327", "CWE-328"],
+      "why": "MD5 and SHA-1 are collision-broken. For passwords they are catastrophic; for signatures they are forgeable.",
+      "falsePositiveHints": "Severity depends entirely on use. Password hashing or signature verification: High/Critical. Non-security checksums (cache keys, ETags, file dedupe): Info, and say so explicitly rather than flagging noise."
+    },
+    {
+      "id": "UNI-CRY-02",
+      "title": "Broken or weak symmetric cipher",
+      "pattern": "(?i)\\b(DES|3DES|TripleDES|RC2|RC4|Blowfish)\\b|AES\\.new\\([^)]*MODE_ECB|CipherMode\\.ECB|\"AES/ECB",
+      "severity": "High",
+      "owasp": "A02:2021",
+      "cwe": ["CWE-327"],
+      "why": "DES/3DES/RC4 are broken. ECB mode leaks plaintext structure regardless of the cipher.",
+      "falsePositiveHints": "Check it is used for confidentiality, not interop with a legacy system that mandates it. If mandated, the finding stands but the remediation becomes compensating controls."
+    },
+    {
+      "id": "UNI-CRY-03",
+      "title": "Insecure randomness used in a security context",
+      "pattern": "\\b(Math\\.random|new Random\\(|random\\.random\\(|rand\\(\\)|mt_rand\\(|srand\\()",
+      "severity": "Medium",
+      "owasp": "A02:2021",
+      "cwe": ["CWE-338"],
+      "why": "Non-cryptographic PRNGs are predictable. Tokens, session ids, password-reset codes and nonces built from them are guessable.",
+      "falsePositiveHints": "Only a finding when the output is used as a token, id, salt, nonce, key or password. UI jitter, shuffling display data, or test data generation is not a finding."
+    },
+    {
+      "id": "UNI-TLS-01",
+      "title": "TLS certificate validation disabled",
+      "pattern": "(?i)(verify\\s*=\\s*False|rejectUnauthorized\\s*:\\s*false|InsecureSkipVerify\\s*:\\s*true|ServerCertificateValidationCallback\\s*[+]?=|CURLOPT_SSL_VERIFYPEER\\s*,\\s*(0|false)|NODE_TLS_REJECT_UNAUTHORIZED\\s*=\\s*.?0|trustAllCerts|ALLOW_ALL_HOSTNAME_VERIFIER)",
+      "severity": "High",
+      "owasp": "A02:2021",
+      "cwe": ["CWE-295"],
+      "attack": ["T1557"],
+      "why": "Disabling certificate validation turns TLS into unauthenticated encryption - a machine-in-the-middle reads and rewrites everything.",
+      "falsePositiveHints": "Local development and test code is lower severity, but confirm the switch cannot be reached in production (environment-gated, not just conventionally named)."
+    },
+    {
+      "id": "UNI-TLS-02",
+      "title": "Cleartext HTTP endpoint for an application or API call",
+      "pattern": "[\"']http://[a-zA-Z0-9.-]+",
+      "severity": "Medium",
+      "owasp": "A02:2021",
+      "cwe": ["CWE-319"],
+      "why": "Credentials, tokens and PII sent over cleartext HTTP are readable by anyone on the path.",
+      "falsePositiveHints": "Rust regex has no lookahead, so this pattern is deliberately broad. Filter during triage: localhost, 127.0.0.1, 0.0.0.0, *.local, example.com, XML namespaces (xmlns), XSD/DTD schema URLs and W3C references. XML namespace URIs are identifiers, not network calls, and are never a finding."
+    },
+    {
+      "id": "UNI-INJ-01",
+      "title": "SQL statement assembled by string concatenation or interpolation",
+      "pattern": "(?i)(SELECT|INSERT INTO|UPDATE|DELETE FROM)[^\\n]{0,200}?(\"\\s*\\+|\\+\\s*[a-zA-Z_$][\\w$.]*\\s*\\+|'\\s*\\.\\s*\\$|\\|\\|\\s*[a-zA-Z_]|%s['\"]?\\s*[,)]|\\$\\{)",
+      "severity": "Critical",
+      "owasp": "A03:2021",
+      "cwe": ["CWE-89"],
+      "attack": ["T1190"],
+      "why": "Concatenated SQL is the canonical injection vector: full read, write and often OS-level access to the database host.",
+      "falsePositiveHints": "Confirm the interpolated value is not a compile-time constant, an enum, or a validated identifier from a fixed allow-list. Also confirm the string is actually executed rather than logged or shown as documentation. Deliberately does NOT match bare {placeholder} braces: C# $\"...\" passed to FromSqlInterpolated and Python f-strings passed to execute(sql, params) are parameterized and safe, and the language packs (DN-INJ-01, PY-INJ-01) cover the unsafe forms with the context needed to tell them apart."
+    },
+    {
+      "id": "UNI-INJ-02",
+      "title": "OS command executed with a constructed argument string",
+      "pattern": "(?i)(system|popen|exec|execve|execSync|spawnSync|shell_exec|passthru|proc_open|Runtime\\.getRuntime\\(\\)\\.exec|ProcessBuilder|subprocess\\.(call|run|Popen)|os\\.system|Process\\.Start)\\s*\\(",
+      "severity": "High",
+      "owasp": "A03:2021",
+      "cwe": ["CWE-78"],
+      "attack": ["T1059"],
+      "why": "If any part of the command line comes from untrusted input, the attacker runs code as the application user.",
+      "falsePositiveHints": "A fully literal command with no interpolation and shell=False is not a finding. shell=True (or a single string passed to a shell) with ANY variable content is a finding."
+    },
+    {
+      "id": "UNI-INJ-03",
+      "title": "Dynamic code evaluation",
+      "pattern": "(?i)\\b(eval|exec|Function\\s*\\(\\s*[\"']|setTimeout\\s*\\(\\s*[\"']|new Function|assert\\s*\\(\\s*\\$|create_function)\\s*\\(",
+      "severity": "High",
+      "owasp": "A03:2021",
+      "cwe": ["CWE-94", "CWE-95"],
+      "attack": ["T1059"],
+      "why": "Evaluating a string that any untrusted input can influence is remote code execution.",
+      "falsePositiveHints": "Python's exec in build tooling, or eval over a hard-coded literal, is Info. Distinguish JS `exec` on a regex (RegExp.prototype.exec / .exec(str)) - that is NOT code evaluation and is a common false positive."
+    },
+    {
+      "id": "UNI-INJ-04",
+      "title": "Unsafe deserialization of untrusted data",
+      "pattern": "(?i)(pickle\\.loads?|yaml\\.load\\s*\\((?:[^)]*Loader\\s*=\\s*yaml\\.(?:Unsafe|Full)Loader)?|cPickle|marshal\\.loads|readObject\\s*\\(|XMLDecoder|BinaryFormatter|LosFormatter|NetDataContractSerializer|TypeNameHandling\\s*[.=]\\s*(All|Objects|Auto)|unserialize\\s*\\(|Marshal\\.load)",
+      "severity": "Critical",
+      "owasp": "A08:2021",
+      "cwe": ["CWE-502"],
+      "attack": ["T1059"],
+      "why": "Deserializing attacker-controlled bytes into live objects yields remote code execution in every language listed here.",
+      "falsePositiveHints": "yaml.safe_load is fine. Deserializing data the application itself just produced and stored in a trusted location is lower severity - but confirm the store is genuinely not attacker-writable."
+    },
+    {
+      "id": "UNI-PTH-01",
+      "title": "File path built from a variable without normalization",
+      "pattern": "(?i)(open|readFile|readFileSync|File\\.(Open|ReadAll|WriteAll|Delete)|new File|fopen|file_get_contents|os\\.remove|Path\\.Combine|createReadStream)\\s*\\([^)\\n]*(\\+|\\$\\{|%s|\\{[a-zA-Z_])",
+      "severity": "High",
+      "owasp": "A01:2021",
+      "cwe": ["CWE-22"],
+      "attack": ["T1083"],
+      "why": "Path traversal lets an attacker read or overwrite files outside the intended directory - config, keys, source, or the application binary.",
+      "falsePositiveHints": "Not a finding when the variable is a fixed server-side constant or an id already validated against an allow-list. Look for a canonicalization + prefix check; if it exists, the finding is closed."
+    },
+    {
+      "id": "UNI-LOG-01",
+      "title": "Potentially sensitive value written to a log",
+      "pattern": "(?i)(log|logger|console|print|printf|Debug|Info|Warn|Error|Trace)\\s*[.(][^\\n]{0,80}(password|passwd|secret|token|apikey|api_key|ssn|credit ?card|cardnumber|cvv|authorization|bearer|jwt)",
+      "severity": "Medium",
+      "owasp": "A09:2021",
+      "cwe": ["CWE-532"],
+      "attack": ["T1552"],
+      "why": "Secrets and PII in logs spread to log aggregators, backups and support tickets, far outside the application trust boundary.",
+      "falsePositiveHints": "Logging the literal string \"password required\" or a field NAME is not a finding. Logging the VALUE is. Read the statement."
+    },
+    {
+      "id": "UNI-ERR-01",
+      "title": "Exception detail returned to the caller",
+      "pattern": "(?i)(printStackTrace|\\.StackTrace|traceback\\.format_exc|ex\\.ToString\\(\\)|str\\(e\\)|\\.getMessage\\(\\))[^\\n]{0,60}(response|render|write|send|return|Content|Body|json)",
+      "severity": "Low",
+      "owasp": "A05:2021",
+      "cwe": ["CWE-209"],
+      "why": "Stack traces disclose framework versions, file paths, SQL fragments and internal structure that shorten an attacker's reconnaissance.",
+      "falsePositiveHints": "Server-side logging of a stack trace is correct practice, not a finding. Only returning it to the client counts."
+    },
+    {
+      "id": "UNI-SSRF-01",
+      "title": "Outbound HTTP request to a URL built from input",
+      "pattern": "(?i)(requests\\.(get|post|put|delete)|urlopen|HttpClient|fetch|axios|WebClient|curl_setopt[^\\n]*CURLOPT_URL|http\\.(Get|Post)|RestTemplate|HttpWebRequest)\\s*\\([^)\\n]*(\\+|\\$\\{|%s|\\{[a-zA-Z_]|request\\.|req\\.|params|query)",
+      "severity": "High",
+      "owasp": "A10:2021",
+      "cwe": ["CWE-918"],
+      "attack": ["T1090"],
+      "why": "SSRF reaches internal services, cloud metadata endpoints (169.254.169.254) and admin interfaces from inside the network perimeter.",
+      "falsePositiveHints": "Not a finding if the host is fixed and only the path/query is variable, or the URL is validated against a host allow-list. Confirm which part is attacker-controlled."
+    },
+    {
+      "id": "UNI-XXE-01",
+      "title": "XML parser configured without external-entity protection",
+      "pattern": "(?i)(DocumentBuilderFactory|SAXParserFactory|XMLInputFactory|XmlTextReader|etree\\.parse|xml\\.dom\\.minidom|libxml_disable_entity_loader|XmlReaderSettings|SimpleXMLElement|new XMLReader)",
+      "severity": "Medium",
+      "owasp": "A05:2021",
+      "cwe": ["CWE-611"],
+      "why": "A parser that resolves external entities can be made to read local files or make outbound requests on the attacker's behalf.",
+      "falsePositiveHints": "Modern defaults are often safe (.NET 4.5.2+, Python defusedxml, recent JDKs). This is a PROMPT to check the configuration nearby, not an automatic finding. Confirm whether disallow-doctype-decl / external-general-entities is set."
+    },
+    {
+      "id": "UNI-AUTHZ-01",
+      "title": "Authorization decision made against a client-supplied role or id",
+      "pattern": "(?i)(request|req|params|query|body|headers|cookies|form)\\s*[\\.\\[][\"']?(role|isAdmin|is_admin|userId|user_id|admin|permission|scope|tenant|accountId)",
+      "severity": "High",
+      "owasp": "A01:2021",
+      "cwe": ["CWE-639", "CWE-602"],
+      "attack": ["T1078"],
+      "why": "Any authorization input the client controls can be forged. This is the mechanism behind most IDOR and privilege-escalation bugs.",
+      "falsePositiveHints": "Reading an id from the request is normal; the finding is whether an OWNERSHIP or ROLE check follows before the record is returned or mutated. Read the handler to the end before deciding."
+    },
+    {
+      "id": "UNI-TODO-01",
+      "title": "Developer note flagging an unresolved security concern",
+      "pattern": "(?i)(TODO|FIXME|HACK|XXX|BUG)[^\\n]{0,80}(secur|auth|password|token|inject|escape|sanitiz|validat|encrypt|vulnerab|temporary|for now)",
+      "severity": "Info",
+      "owasp": "A04:2021",
+      "cwe": ["CWE-1059"],
+      "why": "Developers usually know where the weak spots are. These comments are a high-yield map of them.",
+      "falsePositiveHints": "Not a vulnerability in itself. Use each hit as a pointer for manual review; report only the ones whose underlying issue you confirm."
+    }
+  ]
+}

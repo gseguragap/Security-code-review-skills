@@ -1,0 +1,11 @@
+* text=auto
+
+# Shell scripts must keep LF so they run under bash on any platform
+*.sh text eol=lf
+*.awk text eol=lf
+
+# Windows-only scripts
+*.ps1 text eol=crlf
+
+# Large binaries via Git LFS
+*.mp4 filter=lfs diff=lfs merge=lfs -text

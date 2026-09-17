@@ -1,0 +1,400 @@
+{
+  "schemaVersion": "1.0",
+  "meta": {
+    "projectName": "AcmeBilling",
+    "scanDate": "2026-09-11",
+    "analyst": "Claude Code - security-audit-compare skill v1.0",
+    "depth": "standard",
+    "comparisonDepth": "full",
+    "comparedCount": 6,
+    "subtitle": "Informix 4GL to .NET 10 / Blazor Server - migration security comparison",
+    "verdict": "The migration eliminated the legacy system's SQL injection surface almost entirely by moving data access to EF Core, and that is a real gain. It did not, however, carry over the operator sign-on: the modernized application has no authentication at all, so every record the legacy system kept behind a terminal login is now reachable anonymously over the internet. Two legacy findings also vanished only because nightly batch invoicing was never migrated - they will return with the feature. Net posture is worse than before the migration despite the injection win.",
+    "scoreCaveat": "Both sides are scored with the default-v1 profile and identical weights, but not identical exposure: the legacy application was reachable only from a private terminal network, while the modernized one is internet-facing. Read the category movement rather than the headline numbers alone.",
+    "legacy": {
+      "targetPath": "C:/src/acme/legacy",
+      "stack": "Informix 4GL, ESQL/C",
+      "reportFile": "AcmeBilling - Legacy - Security analysis report. - 2026-09-11.html",
+      "findingsCount": 5,
+      "mode": "analyze",
+      "depth": "standard"
+    },
+    "modernized": {
+      "targetPath": "C:/src/acme/modern",
+      "stack": ".NET 10, Blazor Server, EF Core",
+      "reportFile": "AcmeBilling - Modernized - Security analysis report. - 2026-09-11.html",
+      "findingsCount": 4,
+      "mode": "plan",
+      "depth": "standard"
+    }
+  },
+
+  "scores": {
+    "profile": "default-v1",
+    "legacy": { "score": 58, "grade": "F", "posture": "At Risk" },
+    "modernized": { "score": 49, "grade": "F", "posture": "Critical" },
+    "projected": { "score": 91, "grade": "A-", "posture": "Hardened" },
+    "categories": [
+      { "key": "access-control", "name": "Access Control", "owasp": "A01", "weight": 22,
+        "legacy": 55, "modernized": 10,
+        "note": "The legacy terminal sign-on was not reproduced. The web application has no authN/authZ of any kind." },
+      { "key": "injection", "name": "Injection", "owasp": "A03", "weight": 14,
+        "legacy": 10, "modernized": 55,
+        "note": "Eleven of twelve hand-built statements became parameterized LINQ. One raw-SQL search survived the port." },
+      { "key": "xss", "name": "Cross-Site Scripting", "owasp": "A03", "weight": 8,
+        "legacy": 100, "modernized": 88,
+        "note": "Not applicable to a terminal UI. Razor auto-encodes, but one MarkupString sink takes user input." },
+      { "key": "misconfiguration", "name": "Security Misconfiguration", "owasp": "A05", "weight": 13,
+        "legacy": 88, "modernized": 76,
+        "note": "New web surface brings headers, CORS and cookie policy that had no legacy equivalent." },
+      { "key": "cryptographic", "name": "Cryptographic Failures", "owasp": "A02", "weight": 10,
+        "legacy": 55, "modernized": 100,
+        "note": "Legacy stored operator passwords as unsalted MD5. That table and its code were not migrated." },
+      { "key": "authentication", "name": "Authentication Failures", "owasp": "A07", "weight": 8,
+        "legacy": 75, "modernized": 10,
+        "note": "A weak control replaced by no control." },
+      { "key": "logging", "name": "Logging & Monitoring", "owasp": "A09", "weight": 7,
+        "legacy": 95, "modernized": 95, "note": null },
+      { "key": "validation", "name": "Input Validation", "owasp": "A04", "weight": 9,
+        "legacy": 95, "modernized": 95, "note": null },
+      { "key": "dependencies", "name": "Vulnerable & Outdated Components", "owasp": "A06", "weight": 5,
+        "legacy": null, "modernized": null,
+        "note": "Not assessed on either side - no advisory source was reachable during either run." },
+      { "key": "integrity", "name": "Software & Data Integrity", "owasp": "A08", "weight": 2,
+        "legacy": 95, "modernized": 95, "note": null },
+      { "key": "ssrf", "name": "Server-Side Request Forgery", "owasp": "A10", "weight": 2,
+        "legacy": null, "modernized": 100,
+        "note": "No outbound HTTP existed in the legacy system; the category did not apply." }
+    ]
+  },
+
+  "functionalAreas": [
+    { "name": "Customer record CRUD", "legacyPaths": ["custmaint.4gl", "custlook.4gl"],
+      "modernPaths": ["Pages/Customers.razor", "Services/CustomerService.cs"], "counterpart": "both" },
+    { "name": "Order entry and posting", "legacyPaths": ["ordent.4gl"],
+      "modernPaths": ["Pages/Orders.razor"], "counterpart": "both" },
+    { "name": "Operator sign-on", "legacyPaths": ["signon.4gl"], "modernPaths": [],
+      "counterpart": "legacy-only",
+      "note": "No login page, identity provider registration or session concept anywhere in the modernized tree." },
+    { "name": "Nightly batch invoicing", "legacyPaths": ["invbatch.4gl"], "modernPaths": [],
+      "counterpart": "legacy-only", "note": "No scheduled-job equivalent found." },
+    { "name": "Public status page", "legacyPaths": [], "modernPaths": ["Pages/Status.razor"],
+      "counterpart": "modern-only" }
+  ],
+
+  "items": [
+    {
+      "id": "C-1",
+      "bucket": "introduced",
+      "title": "No authentication or authorization anywhere in the application",
+      "severity": "Critical",
+      "category": "access-control",
+      "functionalArea": "Application-wide",
+      "owasp": "A01:2021 Broken Access Control",
+      "cwe": ["CWE-862", "CWE-306"],
+      "attack": [{ "id": "T1190", "name": "Exploit Public-Facing Application" }],
+      "nist": { "ssdf": ["PW.5"], "sp80053": ["AC-3", "IA-2"] },
+      "modernized": {
+        "id": "M-1",
+        "severity": "Critical",
+        "confidence": "Confirmed",
+        "evidence": "Zero [Authorize] attributes across 148 files. No AddAuthentication, AddAuthorization, UseAuthentication or UseAuthorization in Program.cs. MapBlazorHub() is mapped without RequireAuthorization().",
+        "locations": [
+          { "file": "Program.cs", "line": 22, "excerpt": "app.MapBlazorHub();\napp.MapFallbackToPage(\"/_Host\");" },
+          { "file": "Pages/Customers.razor", "line": 1, "excerpt": "@page \"/customers\"" }
+        ]
+      },
+      "match": {
+        "confidence": "Certain",
+        "basis": "The legacy audit assessed access control and recorded signon.4gl as a working, if weak, gate on every screen. The modernized tree has no equivalent, so this is a regression rather than a new surface."
+      },
+      "migrationNote": "signon.4gl authenticated every operator against the OPERATOR table before any screen opened, and no 4GL screen was reachable without it. The modernized application has no login page, no identity provider registration and no session concept. The control was not weakened in the migration - it was dropped, and the same data is now served anonymously over the public internet.",
+      "risk": "Any anonymous visitor who can reach the URL can read and modify every customer, order and invoice record, and can open a SignalR circuit to invoke server-side component logic.",
+      "remediation": {
+        "summary": "Register an identity provider and apply a global default-deny authorization policy.",
+        "nonBreaking": true,
+        "breakingChange": false,
+        "effort": "M",
+        "planned": true,
+        "steps": [
+          "Add AddAuthentication().AddOpenIdConnect(...) plus AddAuthorization(), and call UseAuthentication()/UseAuthorization() before UseAntiforgery().",
+          "Set a global fallback policy with AddAuthorizationBuilder().SetFallbackPolicy(RequireAuthenticatedUser()) so every page requires sign-in by default, with no per-page edits.",
+          "Mark login, health and error endpoints [AllowAnonymous].",
+          "Protect the circuit: MapBlazorHub().RequireAuthorization()."
+        ],
+        "codeBefore": "app.MapBlazorHub();\napp.MapFallbackToPage(\"/_Host\");",
+        "codeAfter": "app.UseAuthentication();\napp.UseAuthorization();\napp.MapBlazorHub().RequireAuthorization();\napp.MapFallbackToPage(\"/_Host\");",
+        "language": "csharp"
+      },
+      "verification": "An unauthenticated GET /customers returns 302 to the sign-in endpoint. After signing in the page renders exactly as it does today. dotnet build reports 0 errors.",
+      "references": [
+        { "label": "OWASP A01:2021", "url": "https://owasp.org/Top10/A01_2021-Broken_Access_Control/" }
+      ]
+    },
+
+    {
+      "id": "C-2",
+      "bucket": "inherited",
+      "title": "Customer search builds its WHERE clause by string concatenation",
+      "severity": "Critical",
+      "category": "injection",
+      "functionalArea": "Customer record CRUD",
+      "owasp": "A03:2021 Injection",
+      "cwe": ["CWE-89"],
+      "attack": [{ "id": "T1190", "name": "Exploit Public-Facing Application" }],
+      "nist": { "ssdf": ["PW.5"], "sp80053": ["SI-10"] },
+      "legacy": {
+        "id": "L-2",
+        "severity": "High",
+        "confidence": "Confirmed",
+        "evidence": "custlook.4gl builds the SELECT by concatenation before PREPARE; p_name comes straight from the screen field.",
+        "locations": [
+          { "file": "custlook.4gl", "line": 812,
+            "excerpt": "LET stmt = \"SELECT * FROM customer WHERE name LIKE '\", p_name CLIPPED, \"%'\"\nPREPARE s1 FROM stmt" }
+        ]
+      },
+      "modernized": {
+        "id": "M-2",
+        "severity": "Critical",
+        "confidence": "Confirmed",
+        "evidence": "CustomerService.Search interpolates the search term directly into FromSqlRaw. term is bound to the page's search box with no validation.",
+        "locations": [
+          { "file": "Services/CustomerService.cs", "line": 47,
+            "excerpt": "return _db.Customers.FromSqlRaw($\"SELECT * FROM Customers WHERE Name LIKE '%{term}%'\").ToList();" }
+        ]
+      },
+      "match": {
+        "confidence": "Certain",
+        "basis": "Same CWE-89 defect in the same customer-search routine. The 4GL concatenation was translated construct-for-construct into an interpolated C# string rather than a parameter."
+      },
+      "migrationNote": "The migration parameterized eleven of the twelve legacy queries by moving them to EF Core LINQ - a genuine and substantial improvement. This one was ported as raw SQL because of the LIKE wildcard, and the concatenation came across with it. Severity rises from High to Critical because the endpoint is now anonymous and internet-facing rather than behind the terminal sign-on.",
+      "risk": "An anonymous visitor can read, and with a stacked statement modify, any row in the billing database.",
+      "remediation": {
+        "summary": "Pass the search term as a parameter. The LIKE wildcards belong in the parameter value, not in the SQL text.",
+        "nonBreaking": true,
+        "breakingChange": false,
+        "effort": "S",
+        "planned": true,
+        "steps": [
+          "Replace FromSqlRaw with FromSqlInterpolated, which parameterizes interpolated holes automatically.",
+          "Or drop to LINQ entirely: _db.Customers.Where(c => EF.Functions.Like(c.Name, \"%\" + term + \"%\")).",
+          "Add a length cap and a character allow-list on the search term at the page boundary."
+        ],
+        "codeBefore": "_db.Customers.FromSqlRaw($\"SELECT * FROM Customers WHERE Name LIKE '%{term}%'\")",
+        "codeAfter": "_db.Customers.Where(c => EF.Functions.Like(c.Name, \"%\" + term + \"%\"))",
+        "language": "csharp"
+      },
+      "verification": "Search for ' OR 1=1 -- and confirm zero rows returned and no exception. dotnet build reports 0 errors.",
+      "references": [
+        { "label": "OWASP A03:2021", "url": "https://owasp.org/Top10/A03_2021-Injection/" }
+      ]
+    },
+
+    {
+      "id": "C-3",
+      "bucket": "new-surface",
+      "title": "No security response headers and a permissive CORS policy",
+      "severity": "Medium",
+      "category": "misconfiguration",
+      "functionalArea": "Application-wide",
+      "owasp": "A05:2021 Security Misconfiguration",
+      "cwe": ["CWE-693"],
+      "nist": { "ssdf": ["PW.9"], "sp80053": ["SC-8", "CM-6"] },
+      "modernized": {
+        "id": "M-3",
+        "severity": "Medium",
+        "confidence": "Confirmed",
+        "evidence": "No Content-Security-Policy, X-Content-Type-Options, Referrer-Policy or HSTS middleware in Program.cs. AddCors registers AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod().",
+        "locations": [
+          { "file": "Program.cs", "line": 14,
+            "excerpt": "builder.Services.AddCors(o => o.AddDefaultPolicy(p =>\n    p.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod()));" }
+        ]
+      },
+      "migrationNote": "No legacy counterpart is possible. The 4GL application had no HTTP surface at all, so response headers, CORS and cookie policy are risks the new architecture brings with it rather than anything the migration broke. They still need addressing before the application is exposed.",
+      "risk": "A permissive CORS policy lets any origin read authenticated responses once authentication exists. Missing CSP removes the last line of defence against an XSS sink such as C-4.",
+      "remediation": {
+        "summary": "Add a response-header middleware and replace the wildcard CORS policy with an explicit origin allow-list.",
+        "nonBreaking": true,
+        "breakingChange": false,
+        "effort": "S",
+        "planned": true,
+        "steps": [
+          "Add UseHsts() and a middleware setting Content-Security-Policy, X-Content-Type-Options: nosniff and Referrer-Policy: no-referrer.",
+          "Replace AllowAnyOrigin() with WithOrigins(<the application's own origins>).",
+          "Set cookie policy to SameSite=Strict, Secure and HttpOnly."
+        ],
+        "language": "csharp"
+      },
+      "verification": "curl -I against the deployed origin shows the four headers. A cross-origin fetch from an unlisted origin is rejected by the browser.",
+      "references": [
+        { "label": "OWASP Secure Headers", "url": "https://owasp.org/www-project-secure-headers/" }
+      ]
+    },
+
+    {
+      "id": "C-4",
+      "bucket": "resolved",
+      "title": "Operator passwords stored as unsalted MD5",
+      "severity": "High",
+      "category": "cryptographic",
+      "functionalArea": "Operator sign-on",
+      "owasp": "A02:2021 Cryptographic Failures",
+      "cwe": ["CWE-916", "CWE-759"],
+      "nist": { "ssdf": ["PW.4"], "sp80053": ["IA-5"] },
+      "legacy": {
+        "id": "L-4",
+        "severity": "High",
+        "confidence": "Confirmed",
+        "evidence": "signon.4gl hashes the entered password with a local MD5 routine and compares it to OPERATOR.PASSWD. No salt, no iteration count.",
+        "locations": [
+          { "file": "signon.4gl", "line": 96,
+            "excerpt": "CALL md5_hash(p_passwd) RETURNING l_hash\nSELECT COUNT(*) INTO l_cnt FROM operator\n  WHERE opid = p_opid AND passwd = l_hash" }
+        ]
+      },
+      "resolution": {
+        "reason": "feature-not-migrated",
+        "detail": "The hash is gone because signon.4gl is gone. No credential storage of any kind exists in the modernized tree, because no authentication exists in it either. This is not a cryptographic improvement - it is the same gap recorded as C-1, seen from the other side."
+      },
+      "match": {
+        "confidence": "Certain",
+        "basis": "Operator sign-on maps to no modernized path; the whole functional area is absent."
+      },
+      "migrationNote": "Counting this as a resolved cryptographic finding would be misleading. The weak hash disappeared along with the control it protected, and whatever identity provider eventually lands must not reintroduce it.",
+      "risk": "No current risk in the modernized codebase - but the control this finding belonged to is missing entirely. See C-1."
+    },
+
+    {
+      "id": "C-5",
+      "bucket": "resolved",
+      "title": "Order total recomputed from unvalidated screen input in the posting routine",
+      "severity": "High",
+      "category": "injection",
+      "functionalArea": "Order entry and posting",
+      "owasp": "A03:2021 Injection",
+      "cwe": ["CWE-89"],
+      "legacy": {
+        "id": "L-5",
+        "severity": "High",
+        "confidence": "Confirmed",
+        "evidence": "ordent.4gl concatenates the quantity field into an UPDATE statement without binding.",
+        "locations": [
+          { "file": "ordent.4gl", "line": 433,
+            "excerpt": "LET stmt = \"UPDATE orders SET qty = \", p_qty CLIPPED, \" WHERE ordnum = \", p_ord CLIPPED\nEXECUTE IMMEDIATE stmt" }
+        ]
+      },
+      "resolution": {
+        "reason": "fixed-by-construction",
+        "detail": "Order posting moved to EF Core change tracking. The generated UPDATE is parameterized by the provider, and there is no string-built SQL anywhere in OrderService.cs. The defect cannot recur in this code path without reintroducing raw SQL."
+      },
+      "match": {
+        "confidence": "Certain",
+        "basis": "Order entry and posting maps cleanly to Pages/Orders.razor and OrderService.cs; the modernized audit assessed injection there and recorded a strength, not a finding."
+      },
+      "migrationNote": "A genuine win, and the clearest example of what the ORM migration bought. Eleven legacy statements were resolved this way; this one is representative.",
+      "risk": "None in the modernized codebase."
+    },
+
+    {
+      "id": "C-6",
+      "bucket": "not-comparable",
+      "title": "Nightly invoice batch writes a plaintext credential file to /tmp",
+      "severity": "Medium",
+      "category": "cryptographic",
+      "functionalArea": "Nightly batch invoicing",
+      "owasp": "A02:2021 Cryptographic Failures",
+      "cwe": ["CWE-256"],
+      "legacy": {
+        "id": "L-3",
+        "severity": "Medium",
+        "confidence": "Likely",
+        "evidence": "invbatch.4gl writes the database connection credentials to a temp file consumed by the ESQL/C child process; the file is world-readable and not removed on failure.",
+        "locations": [
+          { "file": "invbatch.4gl", "line": 210,
+            "excerpt": "LET tmpf = \"/tmp/invrun.cfg\"\nSTART REPORT inv_rpt TO tmpf" }
+        ]
+      },
+      "resolution": {
+        "reason": "feature-not-migrated",
+        "detail": "Nightly batch invoicing has no modernized counterpart at all - no hosted service, no scheduled job, no equivalent entry point anywhere in the tree."
+      },
+      "match": {
+        "confidence": "Tentative",
+        "basis": "Filed as not-comparable rather than resolved: the modernized side has nothing to compare against, and it is not established whether batch invoicing is out of scope permanently or simply not built yet."
+      },
+      "migrationNote": "Whether this is a resolved finding or an open one depends on a roadmap question this audit cannot answer. If batch invoicing is still to be delivered, the credential-handling requirement travels with it."
+    }
+  ],
+
+  "coverageRisks": [
+    {
+      "area": "Operator sign-on",
+      "why": "signon.4gl authenticated every operator against the OPERATOR table before any screen opened. Nothing equivalent exists in the modernized tree: no login page, no identity provider registration, no session concept. Two legacy findings disappear with this code - but so does the control itself.",
+      "findings": ["C-4"],
+      "recommendation": "Treat sign-on as an open migration item rather than a resolved risk. Design its replacement before the application is exposed, and ensure the new credential store uses a memory-hard KDF rather than reproducing the legacy MD5."
+    },
+    {
+      "area": "Nightly batch invoicing",
+      "why": "invbatch.4gl has no counterpart in the modernized tree. One legacy finding vanishes with it, but no decision is recorded anywhere as to whether the capability is retired or merely unbuilt.",
+      "findings": ["C-6"],
+      "recommendation": "Confirm with the delivery team whether batch invoicing is still in scope. If it is, the credential-handling requirement travels with the feature and should be designed in now rather than rediscovered later."
+    }
+  ],
+
+  "roadmap": [
+    { "phase": 1, "name": "Restore access control", "findings": ["C-1", "C-4"],
+      "effort": "M", "scoreAfter": 76,
+      "rationale": "The single largest regression and the largest coverage gap are the same gap seen twice. A global fallback policy plus an identity provider closes both, and nothing else in the plan is worth doing before the application stops serving billing data anonymously." },
+    { "phase": 2, "name": "Close the surviving injection path", "findings": ["C-2"],
+      "effort": "S", "scoreAfter": 86,
+      "rationale": "One file, one statement, no behaviour change. The cheapest remaining risk reduction in the plan." },
+    { "phase": 3, "name": "Harden the new web surface", "findings": ["C-3"],
+      "effort": "S", "scoreAfter": 91,
+      "rationale": "Headers and CORS matter most once authentication exists, so they follow phase 1 rather than leading." }
+  ],
+
+  "cost": {
+    "source": "transcript",
+    "phases": [
+      { "name": "Legacy audit",
+        "byModel": [
+          { "model": "claude-opus-5", "priced": true, "messages": 31,
+            "tokens": { "input": 1420, "cacheWrite5m": 74200, "cacheWrite1h": 0, "cacheRead": 1240180, "output": 41200, "total": 1357000 },
+            "costUSD": { "input": 0.0071, "cacheWrite5m": 0.4638, "cacheWrite1h": 0.0, "cacheRead": 0.6201, "output": 1.03, "total": 2.121 } }
+        ],
+        "subtotalTokens": 1357000, "subtotalCostUSD": 2.121 },
+      { "name": "Modernized audit",
+        "byModel": [
+          { "model": "claude-opus-5", "priced": true, "messages": 44,
+            "tokens": { "input": 1980, "cacheWrite5m": 96400, "cacheWrite1h": 0, "cacheRead": 1840220, "output": 58310, "total": 1996910 },
+            "costUSD": { "input": 0.0099, "cacheWrite5m": 0.6025, "cacheWrite1h": 0.0, "cacheRead": 0.9201, "output": 1.4578, "total": 2.9903 } }
+        ],
+        "subtotalTokens": 1996910, "subtotalCostUSD": 2.9903 },
+      { "name": "Comparison",
+        "byModel": [
+          { "model": "claude-opus-5", "priced": true, "messages": 18,
+            "tokens": { "input": 860, "cacheWrite5m": 41300, "cacheWrite1h": 0, "cacheRead": 604100, "output": 22400, "total": 668660 },
+            "costUSD": { "input": 0.0043, "cacheWrite5m": 0.2581, "cacheWrite1h": 0.0, "cacheRead": 0.3021, "output": 0.56, "total": 1.1245 } }
+        ],
+        "subtotalTokens": 668660, "subtotalCostUSD": 1.1245 }
+    ],
+    "totals": { "totalTokens": 4022570, "totalCostUSD": 6.2358 },
+    "pricingVersion": "2026-06-24",
+    "note": "Measured from the session transcript and segmented per phase by watermark. Assistant messages are deduplicated by message id. Dollar figures use the list rates in assets/pricing.json and exclude any enterprise discount, Batch API discount or partner-platform pricing."
+  },
+
+  "methodology": [
+    "Both codebases were audited independently with the security-audit skill at standard depth using the default-v1 scoring profile, before any comparison was attempted. Neither score was recomputed here.",
+    "Findings were paired on weakness class (primary CWE) plus functional area, never on file path - the two trees share no layout. The functional area map was built from both inventories and both sets of finding locations before any classification began.",
+    "Every pairing carries a published match confidence. Pairings weaker than Tentative were rejected and both findings left unpaired rather than forced together.",
+    "Modernized-only findings were separated into regressions - where the legacy system occupied the same ground and the legacy audit assessed that category as clean - and new surface, where the weakness class could not arise in a terminal application at all.",
+    "Every resolved finding was interrogated for whether it was fixed or merely disappeared with unmigrated code. Two of the three fell into the latter case and are listed as coverage risks."
+  ],
+
+  "limitations": [
+    "Static analysis only. Neither application was built, deployed or exercised at runtime.",
+    "Findings were paired by a model reading both codebases, not by a mechanical identity. One pairing (C-6) is marked Tentative and should be confirmed by someone who knows both systems.",
+    "The legacy audit ran in analyze mode and produced no remediation guidance by design. All remediation in this report applies to the modernized codebase only.",
+    "Exposure differs between the two systems - the legacy application was reachable only from a private terminal network - so equal severities across the two columns do not imply equal risk.",
+    "Dependency advisories were not verified against a live vulnerability database on either side; the dependencies category is unassessed in both audits and excluded from both scores.",
+    "Two legacy functional areas (operator sign-on, nightly batch invoicing) have no modernized counterpart. Whether that reflects a scope decision or unbuilt work is not determinable from the code."
+  ]
+}

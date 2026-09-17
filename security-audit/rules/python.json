@@ -1,0 +1,142 @@
+{
+  "pack": "python",
+  "appliesTo": ["python", "django", "flask", "fastapi"],
+  "rules": [
+    {
+      "id": "PY-INJ-01",
+      "title": "SQL built with %, format() or an f-string",
+      "pattern": "(execute|executemany|raw|cursor\\.execute)\\s*\\(\\s*(f[\"']|[\"'][^\"']*[\"']\\s*%|[\"'][^\"']*[\"']\\s*\\.format\\(|[\"'][^\"']*[\"']\\s*\\+)",
+      "glob": "**/*.py",
+      "severity": "Critical",
+      "owasp": "A03:2021",
+      "cwe": ["CWE-89"],
+      "attack": ["T1190"],
+      "why": "DB-API parameter substitution exists precisely so query text is never built from values. String building here is injectable.",
+      "falsePositiveHints": "cursor.execute(sql, params) with a tuple/dict is the safe form. An f-string that only inserts a validated table name from an allow-list is lower severity but still worth noting."
+    },
+    {
+      "id": "PY-INJ-02",
+      "title": "Django ORM raw SQL or extra()",
+      "pattern": "\\.raw\\s*\\(|\\.extra\\s*\\(|RawSQL\\s*\\(|connection\\.cursor\\(\\)",
+      "glob": "**/*.py",
+      "severity": "High",
+      "owasp": "A03:2021",
+      "cwe": ["CWE-89"],
+      "why": "raw() and extra() drop out of the ORM's parameterization; extra() is deprecated partly for this reason.",
+      "falsePositiveHints": "raw() with the params= argument is parameterized and safe."
+    },
+    {
+      "id": "PY-INJ-03",
+      "title": "Subprocess or OS command with shell semantics",
+      "pattern": "os\\.system\\s*\\(|os\\.popen\\s*\\(|shell\\s*=\\s*True|commands\\.getoutput|subprocess\\.(call|run|Popen|check_output)\\s*\\(\\s*f[\"']",
+      "glob": "**/*.py",
+      "severity": "High",
+      "owasp": "A03:2021",
+      "cwe": ["CWE-78"],
+      "attack": ["T1059.006"],
+      "why": "shell=True with any interpolated value lets the caller chain commands with ; or |.",
+      "falsePositiveHints": "subprocess.run([\"prog\", arg]) with a list and shell=False is safe. A fully literal command with shell=True is Info."
+    },
+    {
+      "id": "PY-DES-01",
+      "title": "Unsafe deserialization",
+      "pattern": "pickle\\.loads?|cPickle\\.loads?|marshal\\.loads|yaml\\.load\\s*\\(|dill\\.loads?|jsonpickle\\.decode|shelve\\.open",
+      "glob": "**/*.py",
+      "severity": "Critical",
+      "owasp": "A08:2021",
+      "cwe": ["CWE-502"],
+      "why": "Unpickling attacker-controlled bytes executes arbitrary code by design.",
+      "falsePositiveHints": "yaml.safe_load is safe. yaml.load with Loader=SafeLoader is safe. Pickling to and from a trusted local cache is lower risk but still worth a note."
+    },
+    {
+      "id": "PY-INJ-04",
+      "title": "Dynamic code evaluation",
+      "pattern": "\\beval\\s*\\(|\\bexec\\s*\\(|compile\\s*\\(|__import__\\s*\\(|importlib\\.import_module\\s*\\(\\s*[a-z_]",
+      "glob": "**/*.py",
+      "severity": "High",
+      "owasp": "A03:2021",
+      "cwe": ["CWE-95"],
+      "why": "eval/exec over request-influenced strings is remote code execution.",
+      "falsePositiveHints": "exec in build/setup scripts and eval over literals are Info. ast.literal_eval is safe."
+    },
+    {
+      "id": "PY-DJ-01",
+      "title": "Django DEBUG enabled or ALLOWED_HOSTS wide open",
+      "pattern": "DEBUG\\s*=\\s*True|ALLOWED_HOSTS\\s*=\\s*\\[\\s*[\"']\\*[\"']\\s*\\]",
+      "glob": "**/*.py",
+      "severity": "High",
+      "owasp": "A05:2021",
+      "cwe": ["CWE-489", "CWE-209"],
+      "why": "DEBUG=True in production exposes settings, SQL, environment variables and a full traceback console to any visitor.",
+      "falsePositiveHints": "Fine in a settings/dev.py that production never loads, or when read from an environment variable. Check how settings are selected."
+    },
+    {
+      "id": "PY-DJ-02",
+      "title": "Django SECRET_KEY hard-coded",
+      "pattern": "SECRET_KEY\\s*=\\s*[\"'][^\"'{$]{10,}[\"']",
+      "glob": "**/*.py",
+      "severity": "Critical",
+      "owasp": "A02:2021",
+      "cwe": ["CWE-798"],
+      "why": "The SECRET_KEY signs sessions, CSRF tokens and password-reset links. Knowing it means forging all three.",
+      "falsePositiveHints": "os.environ / django-environ lookups are correct. A literal committed key is a Critical finding and requires rotation, not just removal."
+    },
+    {
+      "id": "PY-DJ-03",
+      "title": "CSRF protection bypassed on a view",
+      "pattern": "@csrf_exempt|csrf_exempt\\(|CSRF_COOKIE_SECURE\\s*=\\s*False|SESSION_COOKIE_SECURE\\s*=\\s*False|SESSION_COOKIE_HTTPONLY\\s*=\\s*False",
+      "glob": "**/*.py",
+      "severity": "High",
+      "owasp": "A01:2021",
+      "cwe": ["CWE-352", "CWE-614"],
+      "why": "csrf_exempt on a state-changing view allows cross-site invocation by any page the victim visits.",
+      "falsePositiveHints": "Legitimate on webhook receivers that verify a signature instead. Check for that verification."
+    },
+    {
+      "id": "PY-AUTHZ-01",
+      "title": "No authentication or permission enforcement detected",
+      "pattern": "@login_required|LoginRequiredMixin|permission_classes|IsAuthenticated|@requires_auth|Depends\\s*\\(\\s*get_current_user|@jwt_required|flask_login",
+      "glob": "**/*.py",
+      "expect": "present-required",
+      "precondition": "Web application (Django/Flask/FastAPI) exposing routes.",
+      "severity": "Critical",
+      "owasp": "A01:2021",
+      "cwe": ["CWE-306"],
+      "why": "No authentication decorators, mixins or dependencies anywhere means the routes are anonymous.",
+      "falsePositiveHints": "DRF DEFAULT_PERMISSION_CLASSES or global middleware also satisfies this - search settings before reporting."
+    },
+    {
+      "id": "PY-TMP-01",
+      "title": "Jinja/Flask template rendered from a string",
+      "pattern": "render_template_string\\s*\\(|Template\\s*\\(\\s*f?[\"']|from_string\\s*\\(|\\|\\s*safe\\b|Markup\\s*\\(",
+      "glob": "**/*.{py,html,jinja,j2}",
+      "severity": "High",
+      "owasp": "A03:2021",
+      "cwe": ["CWE-1336", "CWE-79"],
+      "why": "Server-side template injection in Jinja reaches Python objects and commonly escalates to RCE. The |safe filter disables escaping.",
+      "falsePositiveHints": "|safe over content produced by a trusted sanitizer is acceptable. A template string with no interpolation is not a finding."
+    },
+    {
+      "id": "PY-PTH-01",
+      "title": "Filesystem path or archive extraction without validation",
+      "pattern": "send_file\\s*\\(|send_from_directory\\s*\\(|os\\.path\\.join\\s*\\([^)\\n]*(request|args|params|input)|tarfile\\.[^\\n]*extractall|zipfile\\.[^\\n]*extractall",
+      "glob": "**/*.py",
+      "severity": "High",
+      "owasp": "A01:2021",
+      "cwe": ["CWE-22"],
+      "why": "os.path.join with an absolute or ../ segment silently escapes the base directory; extractall trusts archive entry names.",
+      "falsePositiveHints": "send_from_directory performs its own check and is generally safe. Closed when the resolved path is verified against the base with os.path.realpath + startswith."
+    },
+    {
+      "id": "PY-DEP-01",
+      "title": "Declared dependencies to inventory for advisory checking",
+      "pattern": "^[A-Za-z0-9_.-]+\\s*(==|>=|~=|<)",
+      "glob": "**/{requirements*.txt,pyproject.toml,Pipfile}",
+      "severity": "Info",
+      "owasp": "A06:2021",
+      "cwe": ["CWE-1104"],
+      "why": "Collects the dependency inventory for the Step 4 advisory check.",
+      "falsePositiveHints": "Unpinned dependencies (no version specifier) are themselves a supply-chain finding under A08."
+    }
+  ]
+}

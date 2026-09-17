@@ -1,0 +1,44 @@
+{
+  "source": "transcript",
+  "startedAt": "2026-09-16T21:56:10Z",
+  "finishedAt": "2026-09-16T22:08:10Z",
+  "transcript": "C:\\Users\\GilberthEliasSeguraD\\.claude\\projects\\C--Users-GilberthEliasSeguraD-Documents-Security-audits\\5c7e7036-0bc1-4085-a1ce-5ee8d721f989.jsonl",
+  "fromLine": 276,
+  "byModel": [
+    {
+      "model": "claude-opus-5",
+      "priced": true,
+      "messages": 6,
+      "tokens": {
+        "input": 12,
+        "cacheWrite5m": 0,
+        "cacheWrite1h": 83676,
+        "cacheRead": 1777439,
+        "output": 67280,
+        "total": 1928407
+      },
+      "rates": {
+        "input": 5.0,
+        "cacheWrite5m": 6.25,
+        "cacheWrite1h": 10.0,
+        "cacheRead": 0.5,
+        "output": 25.0
+      },
+      "costUSD": {
+        "input": 6e-05,
+        "cacheWrite5m": 0.0,
+        "cacheWrite1h": 0.83676,
+        "cacheRead": 0.888719,
+        "output": 1.682,
+        "total": 3.407539
+      }
+    }
+  ],
+  "totals": {
+    "totalTokens": 1928407,
+    "totalCostUSD": 3.4075
+  },
+  "unpricedModels": 0,
+  "pricingVersion": "2026-06-24",
+  "note": "Measured from the session transcript. Assistant messages are deduplicated by message id. Dollar figures use the list rates in assets/pricing.json and exclude any enterprise discount, Batch API discount or partner-platform pricing."
+}

@@ -1,0 +1,123 @@
+{
+  "source": "transcript",
+  "phases": [
+    {
+      "name": "Legacy audit",
+      "byModel": [
+        {
+          "model": "claude-opus-5",
+          "priced": true,
+          "messages": 12,
+          "tokens": {
+            "input": 24,
+            "cacheWrite5m": 0,
+            "cacheWrite1h": 86047,
+            "cacheRead": 1218123,
+            "output": 33284,
+            "total": 1337478
+          },
+          "rates": {
+            "input": 5.0,
+            "cacheWrite5m": 6.25,
+            "cacheWrite1h": 10.0,
+            "cacheRead": 0.5,
+            "output": 25.0
+          },
+          "costUSD": {
+            "input": 0.00012,
+            "cacheWrite5m": 0.0,
+            "cacheWrite1h": 0.86047,
+            "cacheRead": 0.609062,
+            "output": 0.8321,
+            "total": 2.301751
+          }
+        }
+      ],
+      "subtotalTokens": 1337478,
+      "subtotalCostUSD": 2.3018,
+      "source": "transcript",
+      "pricingVersion": "2026-06-24"
+    },
+    {
+      "name": "Modernized audit",
+      "byModel": [
+        {
+          "model": "claude-opus-5",
+          "priced": true,
+          "messages": 16,
+          "tokens": {
+            "input": 32,
+            "cacheWrite5m": 0,
+            "cacheWrite1h": 123315,
+            "cacheRead": 3272567,
+            "output": 58729,
+            "total": 3454643
+          },
+          "rates": {
+            "input": 5.0,
+            "cacheWrite5m": 6.25,
+            "cacheWrite1h": 10.0,
+            "cacheRead": 0.5,
+            "output": 25.0
+          },
+          "costUSD": {
+            "input": 0.00016,
+            "cacheWrite5m": 0.0,
+            "cacheWrite1h": 1.23315,
+            "cacheRead": 1.636284,
+            "output": 1.468225,
+            "total": 4.337819
+          }
+        }
+      ],
+      "subtotalTokens": 3454643,
+      "subtotalCostUSD": 4.3378,
+      "source": "transcript",
+      "pricingVersion": "2026-06-24"
+    },
+    {
+      "name": "Comparison",
+      "byModel": [
+        {
+          "model": "claude-opus-5",
+          "priced": true,
+          "messages": 6,
+          "tokens": {
+            "input": 12,
+            "cacheWrite5m": 0,
+            "cacheWrite1h": 83676,
+            "cacheRead": 1777439,
+            "output": 67280,
+            "total": 1928407
+          },
+          "rates": {
+            "input": 5.0,
+            "cacheWrite5m": 6.25,
+            "cacheWrite1h": 10.0,
+            "cacheRead": 0.5,
+            "output": 25.0
+          },
+          "costUSD": {
+            "input": 6e-05,
+            "cacheWrite5m": 0.0,
+            "cacheWrite1h": 0.83676,
+            "cacheRead": 0.888719,
+            "output": 1.682,
+            "total": 3.407539
+          }
+        }
+      ],
+      "subtotalTokens": 1928407,
+      "subtotalCostUSD": 3.4075,
+      "source": "transcript",
+      "pricingVersion": "2026-06-24"
+    }
+  ],
+  "totals": {
+    "totalTokens": 6720528,
+    "totalCostUSD": 10.0471
+  },
+  "partial": false,
+  "note": "Measured from the session transcript, segmented per phase by watermark. Assistant messages are deduplicated by message id. Dollar figures use list rates and exclude any enterprise or Batch API discount.",
+  "pricingVersion": "2026-06-24"
+}

@@ -1,0 +1,57 @@
+{
+  "root": "C:\\Users\\GilberthEliasSeguraD\\Documents\\GAP\\AI initiatives\\Informix-demo-3\\Informix-demo-3- code",
+  "filesTotal": 95,
+  "filesScanned": 83,
+  "filesSkipped": 12,
+  "linesScanned": 7955,
+  "byExtension": {
+    ".cs": { "files": 44, "lines": 6808 },
+    ".razor": { "files": 16, "lines": 823 },
+    ".cshtml": { "files": 2, "lines": 40 },
+    ".json": { "files": 3, "lines": 54 },
+    ".csproj": { "files": 1, "lines": 30 },
+    ".ps1": { "files": 1, "lines": 29 },
+    ".md": { "files": 1, "lines": 26 },
+    ".css": { "files": 1, "lines": 145 },
+    ".unl": { "files": 7, "lines": 156 }
+  },
+  "skipped": [
+    { "file": "obj/**", "reason": "build output - 5 files including project.assets.json" },
+    { "file": "stores7.db, stores7.db-wal, stores7.db-shm", "reason": "binary SQLite database; file presence and size recorded as a finding, contents not parsed" },
+    { "file": "wwwroot/css/app.css", "reason": "stylesheet - no executable content" },
+    { "file": "SeedData/*.unl", "reason": "pipe-delimited seed data, identical to the legacy tree's copies" },
+    { "file": "logs/", "reason": "empty at scan time" }
+  ],
+  "stack": {
+    "languages": ["C#", "Razor"],
+    "frameworks": [".NET 10", "Blazor Server", "EF Core 10", "MudBlazor 8", "Serilog 9", "QuestPDF 2024.12"],
+    "dataStores": ["SQLite (stores7.db, local file)"],
+    "ui": "Blazor Server, ServerPrerendered, SignalR circuit",
+    "auth": "None. No authentication or authorization is registered anywhere in the application.",
+    "entryPoints": [
+      "Program.cs (host configuration and middleware pipeline)",
+      "Pages/_Host.cshtml (@page \"/\")",
+      "Pages/Shared/Home.razor (@page \"/\")",
+      "Pages/Customers/CustomerForm.razor (@page \"/customers\")",
+      "Pages/Orders/OrderForm.razor (@page \"/orders\")",
+      "Pages/Stock/StockList.razor (@page \"/stock\")",
+      "Pages/Reports/Reports.razor (@page \"/reports\")",
+      "/health (MapHealthChecks)",
+      "/_blazor (MapBlazorHub - SignalR circuit)"
+    ],
+    "configFiles": ["appsettings.json", "appsettings.Development.json", "Properties/launchSettings.json"]
+  },
+  "dependencies": [
+    { "name": "MudBlazor", "version": "8.0.0" },
+    { "name": "Serilog.AspNetCore", "version": "9.0.0" },
+    { "name": "Serilog.Sinks.File", "version": "6.0.0" },
+    { "name": "Serilog.Sinks.Console", "version": "6.0.0" },
+    { "name": "Microsoft.EntityFrameworkCore.Sqlite", "version": "10.0.0" },
+    { "name": "Microsoft.EntityFrameworkCore.Design", "version": "10.0.0" },
+    { "name": "Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore", "version": "10.0.0" },
+    { "name": "QuestPDF", "version": "2024.12.0" },
+    { "name": "SQLitePCLRaw.bundle_e_sqlite3", "version": "3.0.4" }
+  ],
+  "rulePacks": ["universal.json", "dotnet.json", "config-iac.json"],
+  "depth": "standard"
+}

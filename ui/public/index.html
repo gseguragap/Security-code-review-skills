@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Security Code Review</title>
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+
+<header class="masthead">
+  <div class="wrap">
+    <h1>Security Code Review</h1>
+    <p class="sub">Audit both sides of a modernization &mdash; Legacy, Modernized, and the Comparison between them.</p>
+    <div id="preflight" class="preflight" aria-live="polite"></div>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <!-- ------------------------------------------------------------- form -->
+  <section id="formCard" class="card">
+    <h2>Review setup</h2>
+
+    <div class="field">
+      <label for="projectName">Project name</label>
+      <input id="projectName" type="text" spellcheck="false" autocomplete="off"
+             placeholder="Informix-to-Blazor">
+      <p class="hint">Names the output folder and every report title.</p>
+      <p class="state" data-for="projectName"></p>
+    </div>
+
+    <div class="field">
+      <label for="legacyPath">Legacy source path <span class="opt">optional</span></label>
+      <input id="legacyPath" type="text" spellcheck="false" autocomplete="off"
+             placeholder="C:\src\acme\legacy">
+      <p class="hint">Leave blank if there is no legacy codebase. Audited with <strong>no remediation</strong> &mdash; it is a diagnostic baseline for a system being replaced.</p>
+      <p class="state" data-for="legacyPath"></p>
+    </div>
+
+    <div class="field">
+      <label for="modernizedPath">Modernized source path <span class="req">required</span></label>
+      <input id="modernizedPath" type="text" spellcheck="false" autocomplete="off"
+             placeholder="C:\src\acme\modern">
+      <p class="hint">Audited in full, with non-breaking remediation and a phased roadmap.</p>
+      <p class="state" data-for="modernizedPath"></p>
+    </div>
+
+    <div class="row">
+      <div class="field grow">
+        <label for="outDir">Output directory</label>
+        <input id="outDir" type="text" spellcheck="false" autocomplete="off" placeholder="(server working directory)">
+        <p class="hint">A folder named after the project is created inside this one.</p>
+        <p class="state" data-for="outDir"></p>
+      </div>
+      <div class="field">
+        <label for="depth">Depth</label>
+        <select id="depth">
+          <option value="quick">quick &middot; ~1&times; cost</option>
+          <option value="standard" selected>standard &middot; ~3&times;</option>
+          <option value="deep">deep &middot; ~8&times;</option>
+        </select>
+        <p class="hint">Applied to both sides.</p>
+      </div>
+    </div>
+
+    <div id="planBox" class="plan" hidden>
+      <h3>Plan</h3>
+      <dl id="planList"></dl>
+      <p class="costnote">Audits cost real money. A <em>standard</em> two-codebase review of a small
+      project ran about <strong>$4.50</strong>. Check the paths and file counts before starting.</p>
+    </div>
+
+    <div class="actions">
+      <button id="runBtn" class="btn primary" type="button" disabled>Start review</button>
+      <button id="copyBtn" class="btn" type="button" hidden>Copy CLI command</button>
+      <span id="formMsg" class="formmsg" role="status" aria-live="polite"></span>
+    </div>
+  </section>
+
+  <!-- ------------------------------------------------------------- run -->
+  <section id="runCard" class="card" hidden>
+    <h2>Progress <span id="elapsed" class="elapsed"></span></h2>
+
+    <div id="activity" class="activity" role="status" aria-live="polite" hidden>
+      <span class="spin" aria-hidden="true"></span>
+      <span id="activityText" class="activitytext">starting&hellip;</span>
+    </div>
+
+    <ol id="phases" class="phases">
+      <li data-phase="legacy"><span class="dot"></span><span class="pname">Legacy audit</span><span class="pstate">queued</span></li>
+      <li data-phase="modernized"><span class="dot"></span><span class="pname">Modernized audit</span><span class="pstate">queued</span></li>
+      <li data-phase="comparison"><span class="dot"></span><span class="pname">Comparison</span><span class="pstate">queued</span></li>
+    </ol>
+
+    <div id="cost" class="cost" hidden>
+      <span class="costamt" id="costUsd">&mdash;</span>
+      <span class="costtag" id="costTag">running estimate</span>
+      <span class="costbreak" id="costBreak"></span>
+    </div>
+
+    <div class="logwrap">
+      <div class="logbar">
+        <span class="logtitle">Output</span>
+        <label class="chk"><input id="autoscroll" type="checkbox" checked> follow</label>
+        <button id="cancelBtn" class="btn danger small" type="button">Cancel</button>
+      </div>
+      <pre id="log" class="log" tabindex="0"></pre>
+    </div>
+
+    <div id="results" class="results" hidden>
+      <h3>Reports</h3>
+      <div id="reportList" class="reportlist"></div>
+      <p id="resultPath" class="hint"></p>
+      <button id="againBtn" class="btn" type="button">New review</button>
+    </div>
+  </section>
+
+</main>
+
+<footer class="wrap foot">
+  <span>Bound to <code>127.0.0.1</code> only &middot; no npm dependencies &middot; the CLI is spawned with an argument array, never a shell string.</span>
+</footer>
+
+<script src="/app.js"></script>
+</body>
+</html>

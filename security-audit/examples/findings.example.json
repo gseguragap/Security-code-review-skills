@@ -1,0 +1,384 @@
+{
+  "schemaVersion": "1.0",
+  "meta": {
+    "projectName": "Informix-demo-3",
+    "targetPath": "Test/Demo-3/Informix-demo-3",
+    "scanDate": "2026-09-09",
+    "analyst": "Claude Code - security-audit skill v1.0",
+    "depth": "standard",
+    "mode": "plan",
+    "standards": [
+      "OWASP Top 10 (2021)",
+      "CWE",
+      "MITRE ATT&CK",
+      "NIST SP 800-218 (SSDF v1.1)",
+      "NIST SP 800-53 Rev. 5"
+    ],
+    "stack": {
+      "languages": ["C#", "Razor"],
+      "frameworks": [".NET 10", "Blazor Server", "EF Core", "MudBlazor", "Serilog"],
+      "dataStores": ["SQLite"],
+      "entryPoints": ["Program.cs", "Pages/*.razor"]
+    },
+    "inventory": {
+      "filesScanned": 148,
+      "linesScanned": 21430,
+      "filesSkipped": 2104,
+      "skipReasons": ["bin/ and obj/ build output", "wwwroot minified assets", "binary files"]
+    },
+    "migration": {
+      "isMigration": true,
+      "sourceLanguage": "Informix 4GL",
+      "targetLanguage": "C# / Blazor Server",
+      "sourcePathAudited": null
+    }
+  },
+
+  "scores": {
+    "profile": "modernizer-v1",
+    "current":   { "score": 53, "grade": "F",  "posture": "Critical" },
+    "projected": { "score": 90, "grade": "A-", "posture": "Hardened" },
+    "categories": [
+      { "key": "access-control",   "name": "Access Control",        "owasp": "A01", "weight": 25, "current": 10, "projected": 90, "assessed": true,
+        "note": "No authentication or authorization anywhere; all CRUD reachable anonymously; IDOR on record routes." },
+      { "key": "injection",        "name": "Injection",             "owasp": "A03", "weight": 15, "current": 95, "projected": 95, "assessed": true,
+        "note": "EF Core LINQ throughout; no raw or concatenated SQL found." },
+      { "key": "xss",              "name": "Cross-Site Scripting",  "owasp": "A03", "weight": 10, "current": 90, "projected": 95, "assessed": true,
+        "note": "Blazor auto-encoding intact, no MarkupString sinks; CSP is weak (S-4)." },
+      { "key": "misconfiguration", "name": "Security Misconfiguration", "owasp": "A05", "weight": 15, "current": 70, "projected": 92, "assessed": true,
+        "note": "Good header baseline; CSP allows unsafe-inline/unsafe-eval; deprecated header present." },
+      { "key": "cryptographic",    "name": "Cryptographic Failures","owasp": "A02", "weight": 10, "current": 50, "projected": 85, "assessed": true,
+        "note": "HTTPS and HSTS correct; SQLite database holding customer PII is plaintext on disk." },
+      { "key": "validation",       "name": "Input Validation",      "owasp": "A04", "weight": 10, "current": 30, "projected": 88, "assessed": true,
+        "note": "No server-side DataAnnotations or FluentValidation on any DTO or edit model." },
+      { "key": "logging",          "name": "Logging & Monitoring",  "owasp": "A09", "weight": 10, "current": 50, "projected": 85, "assessed": true,
+        "note": "Serilog request logging present; business mutations are not audited." },
+      { "key": "dependencies",     "name": "Vulnerable & Outdated Components", "owasp": "A06", "weight": 5, "current": null, "projected": null, "assessed": false,
+        "note": "Not assessed - no advisory database or MCP server was reachable. Inventory captured only; see S-9." }
+    ]
+  },
+
+  "strengths": [
+    { "title": "Parameterized data access throughout", "category": "injection",
+      "detail": "EF Core LINQ only. Zero FromSqlRaw / ExecuteSqlRaw / string-concatenated SQL across 148 files. The four 'SQL' string matches in D4DemoService.cs are documentation strings, not executed statements." },
+    { "title": "No XSS sinks", "category": "xss",
+      "detail": "Zero MarkupString or Html.Raw usages; Blazor's automatic contextual encoding is intact on every render path." },
+    { "title": "No hard-coded secrets", "category": "cryptographic",
+      "detail": "No credentials, API keys or private key material in source or configuration. The connection string is a local file path with no password." },
+    { "title": "Transport and header baseline in place", "category": "misconfiguration",
+      "detail": "HTTPS redirection, HSTS, antiforgery, rate limiting, and SecurityHeadersMiddleware setting nosniff, X-Frame-Options, Referrer-Policy and Permissions-Policy." },
+    { "title": "Seed-file I/O uses a fixed server path", "category": "access-control",
+      "detail": "No user input reaches a filesystem path; no traversal exposure in the seeding routine." }
+  ],
+
+  "findings": [
+    {
+      "id": "S-1",
+      "title": "No authentication or authorization anywhere in the application",
+      "severity": "Critical",
+      "confidence": "Confirmed",
+      "category": "access-control",
+      "owasp": "A01:2021 Broken Access Control",
+      "cwe": ["CWE-306", "CWE-862"],
+      "attack": [{ "id": "T1190", "name": "Exploit Public-Facing Application" }],
+      "nist": { "ssdf": ["PW.5", "PW.9"], "sp80053": ["AC-3", "IA-2"] },
+      "origin": "migration-exposed",
+      "exposure": "internet-facing",
+      "locations": [
+        { "file": "Program.cs", "line": 42, "excerpt": "app.MapBlazorHub();\napp.MapFallbackToPage(\"/_Host\");" },
+        { "file": "Pages/Customers.razor", "line": 1, "excerpt": "@page \"/customers\"" },
+        { "file": "Pages/Orders.razor", "line": 1, "excerpt": "@page \"/orders\"" }
+      ],
+      "evidence": "0 [Authorize] attributes across 148 files. No AddAuthentication, AddAuthorization, UseAuthentication or UseAuthorization calls in Program.cs. MapBlazorHub() is mapped with no RequireAuthorization().",
+      "risk": "Any anonymous visitor who can reach the URL can read and modify every customer, order and stock record, and can open a SignalR circuit to invoke server-side component logic directly.",
+      "impact": { "confidentiality": "High", "integrity": "High", "availability": "Low" },
+      "discovered": true,
+      "remediated": false,
+      "remediation": {
+        "summary": "Register an identity provider and apply a global default-deny authorization policy, so every page requires sign-in without editing any page.",
+        "nonBreaking": true,
+        "breakingChange": false,
+        "effort": "M",
+        "planned": true,
+        "steps": [
+          "Add ASP.NET Core Identity or the organisation's OIDC provider: AddAuthentication().AddOpenIdConnect(...) plus AddAuthorization().",
+          "Call UseAuthentication() and UseAuthorization() before UseAntiforgery() in the middleware pipeline.",
+          "Set a global fallback policy - AddAuthorizationBuilder().SetFallbackPolicy(new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build()) - so new pages are protected by default.",
+          "Mark the sign-in, health and error endpoints [AllowAnonymous].",
+          "Protect the circuit: app.MapBlazorHub().RequireAuthorization()."
+        ],
+        "codeBefore": "app.UseAntiforgery();\n\napp.MapBlazorHub();\napp.MapFallbackToPage(\"/_Host\");",
+        "codeAfter": "app.UseAuthentication();\napp.UseAuthorization();\napp.UseAntiforgery();\n\napp.MapBlazorHub().RequireAuthorization();\napp.MapFallbackToPage(\"/_Host\");",
+        "language": "csharp"
+      },
+      "verification": "An unauthenticated GET /customers returns 302 to the sign-in endpoint. After signing in, /customers renders exactly as it does today. dotnet build reports 0 errors and the seeded data still displays.",
+      "references": [
+        { "label": "OWASP A01:2021 Broken Access Control", "url": "https://owasp.org/Top10/A01_2021-Broken_Access_Control/" }
+      ]
+    },
+    {
+      "id": "S-2",
+      "title": "IDOR - record routes return any record by id with no ownership check",
+      "severity": "High",
+      "confidence": "Confirmed",
+      "category": "access-control",
+      "owasp": "A01:2021 Broken Access Control",
+      "cwe": ["CWE-639"],
+      "attack": [{ "id": "T1190", "name": "Exploit Public-Facing Application" }],
+      "nist": { "ssdf": ["PW.5"], "sp80053": ["AC-3", "AC-4"] },
+      "origin": "migration-exposed",
+      "exposure": "internet-facing",
+      "locations": [
+        { "file": "Pages/CustomerDetail.razor", "line": 1, "excerpt": "@page \"/customers/{CustomerNum:int}\"" },
+        { "file": "Pages/OrderDetail.razor", "line": 1, "excerpt": "@page \"/orders/{OrderNum:int}\"" }
+      ],
+      "evidence": "Both detail routes bind an integer id straight from the URL and load the record with no ownership, role or tenant predicate. Incrementing the id walks the whole table.",
+      "risk": "Enumeration of the full customer and order tables by anyone who can reach the app - names, addresses, phone numbers and order history.",
+      "impact": { "confidentiality": "High", "integrity": "Low", "availability": "Low" },
+      "discovered": true,
+      "remediated": false,
+      "remediation": {
+        "summary": "Authentication (S-1) closes anonymous enumeration. For a multi-tenant deployment, additionally scope the load query to the caller.",
+        "nonBreaking": true,
+        "breakingChange": false,
+        "effort": "S",
+        "planned": true,
+        "steps": [
+          "Apply S-1 first - it removes anonymous access to these routes entirely.",
+          "If the application is or will become multi-tenant, add the ownership predicate to the query itself rather than checking after loading, so a missing check fails closed.",
+          "For a single-tenant back-office application, authentication plus the S-3 write role is sufficient; record that decision in the threat model."
+        ],
+        "codeBefore": "var customer = await _service.get_customerAsync(CustomerNum);",
+        "codeAfter": "var customer = await _service.get_customerAsync(CustomerNum, currentUser.TenantId);\n// query filters on TenantId - a forgotten check returns null, not another tenant's row",
+        "language": "csharp"
+      },
+      "verification": "An authenticated user can open records belonging to their tenant; a request for another tenant's id returns 404, not the record. An anonymous request is redirected to sign-in."
+    },
+    {
+      "id": "S-4",
+      "title": "Content Security Policy allows unsafe-inline and unsafe-eval in script-src",
+      "severity": "Medium",
+      "confidence": "Confirmed",
+      "category": "misconfiguration",
+      "owasp": "A05:2021 Security Misconfiguration",
+      "cwe": ["CWE-693", "CWE-1021"],
+      "nist": { "ssdf": ["PW.9"], "sp80053": ["CM-6"] },
+      "origin": "new-surface",
+      "exposure": "internet-facing",
+      "locations": [
+        { "file": "Middleware/SecurityHeadersMiddleware.cs", "line": 34, "excerpt": "\"script-src 'self' 'unsafe-inline' 'unsafe-eval'; \" +" }
+      ],
+      "evidence": "script-src permits both 'unsafe-inline' and 'unsafe-eval', which removes most of the policy's value as an XSS mitigation.",
+      "risk": "Defense-in-depth failure. There is no XSS sink today (see strengths), but if one is introduced, CSP will not stop the injected script from executing.",
+      "impact": { "confidentiality": "Medium", "integrity": "Medium", "availability": "Low" },
+      "discovered": true,
+      "remediated": false,
+      "remediation": {
+        "summary": "Drop unsafe-eval, then replace unsafe-inline for scripts with a per-request nonce. Stage the change through report-only mode so it cannot break the app silently.",
+        "nonBreaking": true,
+        "breakingChange": false,
+        "effort": "S",
+        "planned": true,
+        "steps": [
+          "Remove 'unsafe-eval' - Blazor Server does not require it. Nothing should break.",
+          "Deploy the tightened policy as Content-Security-Policy-Report-Only for one release and review the violation reports.",
+          "Replace 'unsafe-inline' for scripts with a per-request nonce and add that nonce to the framework script tags in _Layout.cshtml.",
+          "Keep style-src 'unsafe-inline' - MudBlazor requires it, and style injection is materially lower risk than script injection."
+        ],
+        "codeBefore": "script-src 'self' 'unsafe-inline' 'unsafe-eval';",
+        "codeAfter": "script-src 'self' 'nonce-{perRequestNonce}';\nstyle-src  'self' 'unsafe-inline';   // retained: MudBlazor requirement",
+        "language": "text"
+      },
+      "verification": "The app loads and is fully interactive under the tightened policy, and the browser console shows zero CSP violations across the main routes."
+    },
+    {
+      "id": "S-5",
+      "title": "No server-side input validation on any DTO or edit model",
+      "severity": "Medium",
+      "confidence": "Confirmed",
+      "category": "validation",
+      "owasp": "A04:2021 Insecure Design",
+      "cwe": ["CWE-20"],
+      "nist": { "ssdf": ["PW.5"], "sp80053": ["SI-10"] },
+      "origin": "migration-exposed",
+      "exposure": "internet-facing",
+      "locations": [
+        { "file": "Application/DTOs/CustomerDto.cs", "line": 8, "excerpt": "public string Fname { get; set; } = string.Empty;" },
+        { "file": "Pages/CustomerEdit.razor", "line": 22, "excerpt": "<EditForm Model=\"@model\" OnValidSubmit=\"Save\">" }
+      ],
+      "evidence": "Zero DataAnnotations attributes and no FluentValidation validators across the DTO and edit-model types. The EditForm has no <DataAnnotationsValidator/>.",
+      "risk": "The legacy 4GL screen enforced field widths at the terminal. Over HTTP that constraint no longer exists, so over-length and malformed values now reach the data layer directly - a textbook migration-exposed gap.",
+      "impact": { "confidentiality": "Low", "integrity": "Medium", "availability": "Low" },
+      "discovered": true,
+      "remediated": false,
+      "remediation": {
+        "summary": "Add DataAnnotations matching the real column widths from the schema, and a DataAnnotationsValidator to each EditForm.",
+        "nonBreaking": true,
+        "breakingChange": false,
+        "effort": "M",
+        "planned": true,
+        "steps": [
+          "Read the real column lengths from the schema - Fname 15, Lname 15, State 2, Zipcode 5 - and mirror them exactly. Do not invent stricter limits: rejecting values the system previously accepted would be a behaviour change.",
+          "Add [Required], [StringLength], [Range] and [RegularExpression] to the edit models accordingly.",
+          "Add <DataAnnotationsValidator /> and a <ValidationSummary /> to each EditForm.",
+          "Keep validation server-side; the Blazor Server model already evaluates it on the server."
+        ],
+        "codeBefore": "public string Fname { get; set; } = string.Empty;\npublic string State { get; set; } = string.Empty;",
+        "codeAfter": "[Required, StringLength(15)]\npublic string Fname { get; set; } = string.Empty;\n\n[Required, StringLength(2, MinimumLength = 2)]\npublic string State { get; set; } = string.Empty;",
+        "language": "csharp"
+      },
+      "verification": "A 200-character first name is rejected with a validation message; a 14-character name saves normally and the record is unchanged in shape."
+    },
+    {
+      "id": "S-6",
+      "title": "Customer PII stored unencrypted at rest",
+      "severity": "Medium",
+      "confidence": "Confirmed",
+      "category": "cryptographic",
+      "owasp": "A02:2021 Cryptographic Failures",
+      "cwe": ["CWE-311"],
+      "attack": [{ "id": "T1530", "name": "Data from Cloud Storage" }],
+      "nist": { "ssdf": ["PW.9"], "sp80053": ["SC-28"] },
+      "origin": "legacy-inherited",
+      "exposure": "internal",
+      "locations": [
+        { "file": "appsettings.json", "line": 9, "excerpt": "\"DefaultConnection\": \"Data Source=stores7.db\"" }
+      ],
+      "evidence": "The SQLite database file holds customer names, addresses and phone numbers as plaintext. Any read access to the filesystem or any backup copy exposes the full dataset.",
+      "risk": "A stolen backup, a misconfigured volume mount or filesystem access through another flaw yields the entire customer table with no further effort.",
+      "impact": { "confidentiality": "High", "integrity": "Low", "availability": "Low" },
+      "discovered": true,
+      "remediated": false,
+      "remediation": {
+        "summary": "Encrypt at the storage layer - SQLCipher or an encrypted volume - keeping the key in a secret store. Prefer platform encryption over column encryption so queries are unaffected.",
+        "nonBreaking": true,
+        "breakingChange": false,
+        "effort": "M",
+        "planned": true,
+        "steps": [
+          "Switch to the SQLCipher-backed SQLite provider and supply the key through configuration: Data Source=stores7.db;Password=<from secret store>.",
+          "Store the key in user-secrets for development and Key Vault / Secrets Manager in production - never in appsettings.json.",
+          "Alternatively, host the file on an encrypted volume if the platform provides one; this needs no code change at all.",
+          "Do not use column-level encryption here - it would break sorting and filtering on the affected columns."
+        ],
+        "verificationNote": "Queries and indexes are unchanged under storage-layer encryption.",
+        "language": "text"
+      },
+      "verification": "The .db file is not readable as plaintext with a hex viewer or the sqlite3 CLI without the key; the application opens it with the key and every page behaves as before."
+    },
+    {
+      "id": "S-7",
+      "title": "Deprecated X-XSS-Protection header is set",
+      "severity": "Low",
+      "confidence": "Confirmed",
+      "category": "misconfiguration",
+      "owasp": "A05:2021 Security Misconfiguration",
+      "cwe": ["CWE-16"],
+      "nist": { "sp80053": ["CM-6"] },
+      "exposure": "internet-facing",
+      "locations": [
+        { "file": "Middleware/SecurityHeadersMiddleware.cs", "line": 28, "excerpt": "ctx.Response.Headers[\"X-XSS-Protection\"] = \"1; mode=block\";" }
+      ],
+      "evidence": "The header is set on every response. Modern browsers ignore it, and its legacy auditor could itself introduce vulnerabilities in older engines.",
+      "risk": "No direct exploitability. It is noise that suggests the header set has not been reviewed recently.",
+      "impact": { "confidentiality": "Low", "integrity": "Low", "availability": "Low" },
+      "discovered": true,
+      "remediated": false,
+      "remediation": {
+        "summary": "Remove the header. CSP (S-4) is the modern control for this class of attack.",
+        "nonBreaking": true,
+        "breakingChange": false,
+        "effort": "S",
+        "planned": true,
+        "steps": ["Delete the X-XSS-Protection line from SecurityHeadersMiddleware."],
+        "language": "csharp"
+      },
+      "verification": "The header is absent from responses; no behaviour change anywhere in the app."
+    },
+    {
+      "id": "S-9",
+      "title": "No automated dependency vulnerability scanning in the pipeline",
+      "severity": "Low",
+      "confidence": "Confirmed",
+      "category": "dependencies",
+      "owasp": "A06:2021 Vulnerable and Outdated Components",
+      "cwe": ["CWE-1104"],
+      "nist": { "ssdf": ["PW.4", "RV.1"], "sp80053": ["RA-5"] },
+      "exposure": "internal",
+      "locations": [
+        { "file": "Informix-demo-3.csproj", "line": 12, "excerpt": "<PackageReference Include=\"MudBlazor\" Version=\"8.0.0\" />" }
+      ],
+      "evidence": "Declared packages: MudBlazor 8.0.0, Microsoft.EntityFrameworkCore.Sqlite 10.0.0, QuestPDF 2024.12.0, Serilog.AspNetCore 9.0.0, SQLitePCLRaw 3.0.4. No CI step runs a vulnerability check. This audit had no advisory source available, so the packages were NOT checked against a vulnerability database - their status is unknown, not clean.",
+      "risk": "A vulnerable dependency would go unnoticed until it was exploited. This is a continuous risk, not a point-in-time one - a package that is clean today may have an advisory published tomorrow.",
+      "impact": { "confidentiality": "Medium", "integrity": "Medium", "availability": "Medium" },
+      "discovered": true,
+      "remediated": false,
+      "remediation": {
+        "summary": "Add a dependency vulnerability gate to CI and fail the build on High or Critical advisories.",
+        "nonBreaking": true,
+        "breakingChange": false,
+        "effort": "S",
+        "planned": true,
+        "steps": [
+          "Add 'dotnet list package --vulnerable --include-transitive' as a CI step and fail on High/Critical.",
+          "Enable Dependabot or Renovate so upgrade PRs are raised automatically.",
+          "Run the check once now, out of band, to establish the current position - this audit could not."
+        ],
+        "codeAfter": "- name: Dependency vulnerability check\n  run: |\n    dotnet list package --vulnerable --include-transitive 2>&1 | tee vuln.txt\n    ! grep -qE 'High|Critical' vuln.txt",
+        "language": "yaml"
+      },
+      "verification": "The CI step runs on every build and is green; deliberately pinning a known-vulnerable package version turns it red."
+    }
+  ],
+
+  "roadmap": [
+    { "phase": 1, "name": "Access control", "findings": ["S-1", "S-2"], "effort": "M", "scoreAfter": 78,
+      "rationale": "The largest single risk reduction available. S-1 subsumes most of S-2: once the global policy is in place, anonymous enumeration is gone, and only the multi-tenant scoping remains." },
+    { "phase": 2, "name": "Configuration hardening", "findings": ["S-4", "S-7"], "effort": "S", "scoreAfter": 84,
+      "rationale": "Hours of work for real points. The report-only soak in S-4 means the CSP change carries no deployment risk." },
+    { "phase": 3, "name": "Data and input", "findings": ["S-5", "S-6"], "effort": "M", "scoreAfter": 89,
+      "rationale": "Closes the two gaps the migration exposed: the terminal no longer constrains field widths, and the data file is no longer on a controlled host." },
+    { "phase": 4, "name": "Operational", "findings": ["S-9"], "effort": "S", "scoreAfter": 90,
+      "rationale": "Makes the dependency position continuously visible rather than a point-in-time unknown." }
+  ],
+
+  "evidenceLog": [
+    { "check": "Authorization attributes", "ruleId": "DN-AUTHZ-01", "method": "grep", "query": "\\[Authorize", "result": "0 matches in 148 files", "conclusion": "Finding S-1" },
+    { "check": "Auth middleware registration", "ruleId": "DN-AUTHZ-02", "method": "grep", "query": "AddAuthentication|UseAuthorization", "result": "0 matches in Program.cs", "conclusion": "Finding S-1" },
+    { "check": "Raw SQL execution", "ruleId": "DN-INJ-01", "method": "grep", "query": "FromSqlRaw|ExecuteSqlRaw|CommandText", "result": "0 executed matches; 4 documentation strings in D4DemoService.cs", "conclusion": "No injection sink - strength recorded" },
+    { "check": "XSS sinks", "ruleId": "DN-XSS-01", "method": "grep", "query": "MarkupString|Html\\.Raw", "result": "0 matches", "conclusion": "No XSS sink - strength recorded" },
+    { "check": "Security headers", "ruleId": "DN-CFG-02", "method": "grep", "query": "Content-Security-Policy|X-Content-Type-Options", "result": "Present in SecurityHeadersMiddleware.cs", "conclusion": "Baseline present; CSP weak - Finding S-4" },
+    { "check": "Validation annotations", "ruleId": "DN-VAL-01", "method": "grep", "query": "\\[Required\\]|\\[StringLength|AbstractValidator<", "result": "0 matches", "conclusion": "Finding S-5" },
+    { "check": "Hard-coded secrets", "ruleId": "UNI-SEC-01", "method": "grep", "query": "password|secret|api_key assignment", "result": "0 real matches", "conclusion": "No secrets - strength recorded" },
+    { "check": "Dependency advisories", "ruleId": "DN-DEP-01", "method": "manifest parse", "query": "PackageReference", "result": "5 direct packages inventoried; NO advisory database reachable", "conclusion": "Not assessed - Finding S-9" }
+  ],
+
+  "cost": {
+    "source": "transcript",
+    "startedAt": "2026-09-09T14:02:11Z",
+    "finishedAt": "2026-09-09T14:19:48Z",
+    "byModel": [
+      {
+        "model": "claude-opus-5",
+        "priced": true,
+        "messages": 42,
+        "tokens": { "input": 1820, "cacheWrite5m": 96400, "cacheWrite1h": 0, "cacheRead": 1840220, "output": 58310, "total": 1996750 },
+        "rates":  { "input": 5.00, "cacheWrite5m": 6.25, "cacheWrite1h": 10.00, "cacheRead": 0.50, "output": 25.00 },
+        "costUSD": { "input": 0.0091, "cacheWrite5m": 0.6025, "cacheWrite1h": 0.0, "cacheRead": 0.9201, "output": 1.4578, "total": 2.9895 }
+      }
+    ],
+    "totals": { "totalTokens": 1996750, "totalCostUSD": 2.9895 },
+    "unpricedModels": 0,
+    "pricingVersion": "2026-06-24",
+    "note": "Measured from the session transcript; assistant messages deduplicated by message id. List rates only - excludes enterprise discounts, Batch API pricing and partner-platform rates."
+  },
+
+  "limitations": [
+    "Static analysis only. The application was not built, deployed, or exercised at runtime, so no finding here reflects observed behaviour.",
+    "Dependency advisories were NOT verified against a live vulnerability database - no advisory MCP server was configured and no network access was used. The dependency position is unknown, not clean. See S-9.",
+    "Infrastructure, network policy, WAF rules, reverse-proxy configuration and deployed secrets were out of scope; only files under the target path were examined.",
+    "The Informix 4GL source was not audited in this run (meta.migration.sourcePathAudited is null), so 'legacy-inherited' vs 'migration-introduced' classifications are inferred from the generated code alone.",
+    "Business-logic correctness was assessed only where intent was inferable from the code. Domain rules such as valid state transitions and pricing authority were not verified.",
+    "2,104 files were skipped as build output, minified web assets or binaries."
+  ]
+}

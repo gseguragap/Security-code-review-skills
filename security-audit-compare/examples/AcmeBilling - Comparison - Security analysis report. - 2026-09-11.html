@@ -1,0 +1,1493 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Migration security comparison report</title>
+<style>
+/* ============================================================================
+   Security analysis report - self-contained stylesheet.
+   No external fonts, no CDN, no network. Opens from disk in any browser.
+   Palette: dataviz reference instance (categorical slots 1-2 + status roles),
+   used verbatim - the documented, validated default.
+   ========================================================================= */
+
+:root {
+  color-scheme: light;
+
+  --surface-0:      #f4f4f1;   /* page ground   */
+  --surface-1:      #fcfcfb;   /* card / chart  */
+  --surface-2:      #eeeeea;   /* inset, code   */
+  --border:         #dcdcd6;
+  --border-strong:  #c3c2b7;
+
+  --text-primary:   #0b0b0b;
+  --text-secondary: #52514e;
+  --text-muted:     #78776f;
+
+  /* categorical - fixed order, never cycled */
+  --series-1:       #2a78d6;   /* Current   */
+  --series-2:       #eb6834;   /* Projected */
+
+  /* status - reserved roles, always paired with an icon + label */
+  --st-good:        #0ca30c;
+  --st-warning:     #fab219;
+  --st-serious:     #ec835a;
+  --st-critical:    #d03b3b;
+  --st-neutral:     #78776f;
+
+  --grid:           #e6e6e1;
+  --shadow:         0 1px 2px rgba(0,0,0,.05), 0 4px 12px rgba(0,0,0,.04);
+  --radius:         10px;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --surface-0:      #121211;
+    --surface-1:      #1a1a19;
+    --surface-2:      #232322;
+    --border:         #33332f;
+    --border-strong:  #4a4a45;
+    --text-primary:   #ffffff;
+    --text-secondary: #c3c2b7;
+    --text-muted:     #96958c;
+    --series-1:       #3987e5;
+    --series-2:       #d95926;
+    --grid:           #2b2b28;
+    --shadow:         0 1px 2px rgba(0,0,0,.4), 0 4px 12px rgba(0,0,0,.3);
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --surface-0:      #121211;
+  --surface-1:      #1a1a19;
+  --surface-2:      #232322;
+  --border:         #33332f;
+  --border-strong:  #4a4a45;
+  --text-primary:   #ffffff;
+  --text-secondary: #c3c2b7;
+  --text-muted:     #96958c;
+  --series-1:       #3987e5;
+  --series-2:       #d95926;
+  --grid:           #2b2b28;
+  --shadow:         0 1px 2px rgba(0,0,0,.4), 0 4px 12px rgba(0,0,0,.3);
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--surface-0);
+  color: var(--text-primary);
+  font: 15px/1.6 var(--sans);
+  padding: 0 0 5rem;
+}
+img { max-width: 100%; }
+[hidden] { display: none !important; }
+
+.wrap { max-width: 1160px; margin: 0 auto; padding: 0 24px; }
+
+/* ---------------------------------------------------------------- header */
+header.masthead {
+  background: var(--surface-1);
+  border-bottom: 1px solid var(--border);
+  padding: 28px 0 22px;
+  margin-bottom: 28px;
+}
+.masthead h1 { margin: 0 0 6px; font-size: 26px; line-height: 1.25; letter-spacing: -.02em; }
+.masthead .sub { color: var(--text-secondary); font-size: 14px; margin: 0; }
+.meta-grid {
+  display: grid; gap: 10px 28px; margin-top: 18px;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  font-size: 13px;
+}
+.meta-grid dt { color: var(--text-muted); font-size: 11px; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 2px; }
+.meta-grid dd { margin: 0; color: var(--text-primary); word-break: break-word; }
+
+.theme-toggle {
+  position: absolute; top: 20px; right: 24px;
+  background: var(--surface-2); color: var(--text-secondary);
+  border: 1px solid var(--border); border-radius: 999px;
+  padding: 6px 14px; font: inherit; font-size: 12px; cursor: pointer;
+}
+.theme-toggle:hover { border-color: var(--border-strong); color: var(--text-primary); }
+.masthead { position: relative; }
+
+/* ---------------------------------------------------------------- sections */
+section { margin: 0 0 38px; }
+h2 {
+  font-size: 13px; text-transform: uppercase; letter-spacing: .08em;
+  color: var(--text-muted); margin: 0 0 14px; font-weight: 600;
+}
+h3 { font-size: 17px; margin: 0 0 10px; letter-spacing: -.01em; }
+p  { margin: 0 0 12px; }
+
+.card {
+  background: var(--surface-1); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 20px; box-shadow: var(--shadow);
+}
+
+/* ---------------------------------------------------------------- score tiles */
+.score-row { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); }
+.tile {
+  background: var(--surface-1); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 18px 20px; box-shadow: var(--shadow);
+}
+.tile .label { font-size: 11px; text-transform: uppercase; letter-spacing: .07em; color: var(--text-muted); margin-bottom: 6px; }
+.tile .hero { font-size: 40px; line-height: 1; font-weight: 650; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+.tile .hero .of { font-size: 17px; font-weight: 400; color: var(--text-muted); letter-spacing: 0; }
+.tile .foot { margin-top: 8px; font-size: 13px; color: var(--text-secondary); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+.grade {
+  display: inline-block; font-weight: 650; font-size: 13px;
+  padding: 2px 9px; border-radius: 6px;
+  background: var(--surface-2); border: 1px solid var(--border-strong);
+}
+.posture { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 550; }
+.posture .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+.posture[data-band="Hardened"] .dot { background: var(--st-good); }
+.posture[data-band="Adequate"] .dot { background: var(--series-1); }
+.posture[data-band="At Risk"]  .dot { background: var(--st-warning); }
+.posture[data-band="Critical"] .dot { background: var(--st-critical); }
+
+.uplift { color: var(--st-good); font-weight: 650; font-variant-numeric: tabular-nums; }
+
+/* ---------------------------------------------------------------- severity KPI */
+.sev-row { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(112px, 1fr)); margin-top: 16px; }
+.sev-tile {
+  background: var(--surface-1); border: 1px solid var(--border);
+  border-left: 3px solid var(--st-neutral);
+  border-radius: 8px; padding: 12px 14px;
+}
+.sev-tile .n { font-size: 26px; font-weight: 650; line-height: 1; font-variant-numeric: tabular-nums; }
+.sev-tile .k { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-secondary); margin-top: 5px; display: flex; align-items: center; gap: 5px; }
+.sev-tile[data-sev="Critical"] { border-left-color: var(--st-critical); }
+.sev-tile[data-sev="High"]     { border-left-color: var(--st-serious); }
+.sev-tile[data-sev="Medium"]   { border-left-color: var(--st-warning); }
+.sev-tile[data-sev="Low"]      { border-left-color: var(--series-1); }
+.sev-tile[data-sev="Info"]     { border-left-color: var(--st-neutral); }
+
+/* ---------------------------------------------------------------- chart */
+.legend { display: flex; gap: 18px; align-items: center; font-size: 12.5px; color: var(--text-secondary); margin-bottom: 16px; flex-wrap: wrap; }
+.legend .key { display: inline-flex; align-items: center; gap: 7px; }
+.legend .swatch { width: 11px; height: 11px; border-radius: 3px; flex: none; }
+
+.bars { display: grid; gap: 14px; }
+.bar-row { display: grid; grid-template-columns: minmax(140px, 200px) 1fr; gap: 16px; align-items: center; }
+.bar-row .cat { font-size: 13px; color: var(--text-secondary); line-height: 1.3; }
+.bar-row .cat .wt { color: var(--text-muted); font-size: 11px; display: block; }
+.bar-stack { display: grid; gap: 2px; }              /* 2px surface gap between adjacent bars */
+.bar-line  { display: grid; grid-template-columns: 1fr 34px; gap: 8px; align-items: center; }
+.bar-track { position: relative; height: 13px; background: var(--grid); border-radius: 3px; }
+.bar-fill {
+  position: absolute; left: 0; top: 0; bottom: 0;
+  border-radius: 0 4px 4px 0;                        /* 4px rounded data-end, anchored to baseline */
+  min-width: 3px;
+}
+.bar-fill.s1 { background: var(--series-1); }
+.bar-fill.s2 { background: var(--series-2); }
+.bar-val {
+  font-size: 11.5px; font-variant-numeric: tabular-nums; color: var(--text-secondary);
+  text-align: right; white-space: nowrap;
+}
+.bar-row.na .bar-track { background: repeating-linear-gradient(135deg, var(--grid), var(--grid) 4px, transparent 4px, transparent 8px); }
+.bar-na { font-size: 11.5px; color: var(--text-muted); font-style: italic; padding-left: 2px; }
+
+/* ---------------------------------------------------------------- tables */
+table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+th { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--text-muted); font-weight: 600; white-space: nowrap; }
+tbody tr:last-child td { border-bottom: none; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+td.ctr, th.ctr { text-align: center; }
+td.id, th.id   { white-space: nowrap; width: 1%; }
+.table-scroll { overflow-x: auto; }
+
+.sev-pill {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 11.5px; font-weight: 600; padding: 2px 8px; border-radius: 999px;
+  border: 1px solid; white-space: nowrap;
+}
+.sev-pill[data-sev="Critical"] { color: var(--st-critical); border-color: var(--st-critical); }
+.sev-pill[data-sev="High"]     { color: var(--st-serious);  border-color: var(--st-serious); }
+.sev-pill[data-sev="Medium"]   { color: var(--st-warning);  border-color: var(--st-warning); }
+.sev-pill[data-sev="Low"]      { color: var(--series-1);    border-color: var(--series-1); }
+.sev-pill[data-sev="Info"]     { color: var(--text-muted);  border-color: var(--border-strong); }
+:root[data-theme="dark"] .sev-pill[data-sev="Medium"],
+:root:not([data-theme="light"]) .sev-pill[data-sev="Medium"] { color: var(--st-warning); }
+
+.tag {
+  display: inline-block; font-size: 11px; font-family: var(--mono);
+  background: var(--surface-2); border: 1px solid var(--border);
+  color: var(--text-secondary); padding: 1px 6px; border-radius: 4px; margin: 1px 3px 1px 0;
+  white-space: nowrap;
+}
+.conf { font-size: 11.5px; color: var(--text-secondary); }
+.conf[data-c="Possible"] { color: var(--st-warning); font-weight: 600; }
+
+/* ---------------------------------------------------------------- filters */
+.toolbar {
+  display: flex; gap: 10px; flex-wrap: wrap; align-items: center;
+  margin-bottom: 14px; padding: 12px 14px;
+  background: var(--surface-1); border: 1px solid var(--border); border-radius: var(--radius);
+}
+.toolbar input[type="search"], .toolbar select {
+  font: inherit; font-size: 13px; padding: 6px 10px;
+  background: var(--surface-2); color: var(--text-primary);
+  border: 1px solid var(--border); border-radius: 7px;
+}
+.toolbar input[type="search"] { min-width: 210px; flex: 1 1 210px; }
+.chip {
+  font: inherit; font-size: 12px; padding: 5px 11px; cursor: pointer;
+  background: var(--surface-2); color: var(--text-secondary);
+  border: 1px solid var(--border); border-radius: 999px;
+}
+.chip[aria-pressed="true"] { background: var(--text-primary); color: var(--surface-1); border-color: var(--text-primary); }
+.btn {
+  font: inherit; font-size: 12.5px; padding: 6px 13px; cursor: pointer;
+  background: var(--surface-2); color: var(--text-secondary);
+  border: 1px solid var(--border); border-radius: 7px;
+}
+.btn:hover { border-color: var(--border-strong); color: var(--text-primary); }
+.count-note { font-size: 12.5px; color: var(--text-muted); margin-left: auto; }
+
+/* ---------------------------------------------------------------- findings */
+.finding {
+  background: var(--surface-1); border: 1px solid var(--border);
+  border-radius: var(--radius); margin-bottom: 12px; box-shadow: var(--shadow);
+  overflow: hidden;
+}
+.finding.done { opacity: .62; }
+.finding > summary {
+  list-style: none; cursor: pointer; padding: 14px 18px;
+  display: grid; grid-template-columns: auto auto 1fr auto; gap: 12px; align-items: center;
+}
+.finding > summary::-webkit-details-marker { display: none; }
+.finding > summary:hover { background: var(--surface-2); }
+.finding .fid { font-family: var(--mono); font-size: 12px; color: var(--text-muted); }
+.finding .ftitle { display: block; font-weight: 550; font-size: 14.5px; line-height: 1.35; }
+.finding .fmeta  { display: block; font-size: 12px; color: var(--text-muted); margin-top: 3px; }
+.finding .chev { color: var(--text-muted); font-size: 12px; }
+.finding[open] .chev { transform: rotate(90deg); }
+.chev { display: inline-block; transition: transform .12s ease; }
+
+.fbody { padding: 4px 18px 20px; border-top: 1px solid var(--border); }
+.fblock { margin-top: 16px; }
+.fblock > .h {
+  font-size: 11px; text-transform: uppercase; letter-spacing: .07em;
+  color: var(--text-muted); font-weight: 600; margin-bottom: 6px;
+}
+.loc {
+  font-family: var(--mono); font-size: 12.5px;
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-left: 2px solid var(--border-strong);
+  border-radius: 6px; padding: 8px 11px; margin-bottom: 6px; overflow-x: auto;
+}
+.loc .path { color: var(--series-1); font-weight: 600; }
+.loc .code { display: block; margin-top: 4px; color: var(--text-secondary); white-space: pre; }
+
+pre.code {
+  font-family: var(--mono); font-size: 12.5px; line-height: 1.55;
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: 8px; padding: 12px 14px; overflow-x: auto; margin: 0;
+  white-space: pre;
+}
+.diff { display: grid; gap: 10px; grid-template-columns: 1fr 1fr; }
+@media (max-width: 800px) { .diff { grid-template-columns: 1fr; } }
+.diff .lbl { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted); margin-bottom: 5px; }
+.diff .before pre.code { border-left: 2px solid var(--st-critical); }
+.diff .after  pre.code { border-left: 2px solid var(--st-good); }
+
+ol.steps { margin: 0; padding-left: 20px; }
+ol.steps li { margin-bottom: 6px; }
+ul.plain { margin: 0; padding-left: 18px; }
+ul.plain li { margin-bottom: 5px; }
+
+.verify {
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-left: 3px solid var(--st-good);
+  border-radius: 7px; padding: 10px 13px; font-size: 13.5px;
+}
+.warnbox {
+  background: var(--surface-2); border: 1px solid var(--st-warning);
+  border-left: 3px solid var(--st-warning);
+  border-radius: 7px; padding: 10px 13px; font-size: 13.5px;
+}
+.kv { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px 20px; font-size: 13px; }
+.kv .k { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted); }
+
+.badge-nb {
+  font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px;
+  border: 1px solid var(--st-good); color: var(--st-good);
+}
+.badge-br {
+  font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px;
+  border: 1px solid var(--st-critical); color: var(--st-critical);
+}
+
+.chk { width: 16px; height: 16px; cursor: pointer; accent-color: var(--st-good); }
+
+/* ---------------------------------------------------------------- roadmap */
+.phase {
+  display: grid; grid-template-columns: auto 1fr auto; gap: 14px; align-items: start;
+  padding: 14px 0; border-bottom: 1px solid var(--border);
+}
+.phase:last-child { border-bottom: none; }
+.phase .pnum {
+  width: 28px; height: 28px; border-radius: 50%; flex: none;
+  background: var(--series-1); color: #fff;
+  display: grid; place-items: center; font-size: 13px; font-weight: 650;
+}
+.phase .pafter { font-size: 13px; color: var(--text-secondary); white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+/* ---------------------------------------------------------------- cost */
+.cost-caveat {
+  border-left: 3px solid var(--st-warning);
+  background: var(--surface-2); border-radius: 7px;
+  padding: 10px 13px; font-size: 13.5px; margin-bottom: 14px;
+}
+.cost-total { display: flex; gap: 28px; flex-wrap: wrap; align-items: baseline; margin-top: 14px; }
+.cost-total .big { font-size: 30px; font-weight: 650; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+
+/* ---------------------------------------------------------------- misc */
+footer.foot { color: var(--text-muted); font-size: 12.5px; border-top: 1px solid var(--border); padding-top: 16px; margin-top: 40px; }
+.empty { color: var(--text-muted); font-style: italic; padding: 18px; text-align: center; }
+a { color: var(--series-1); }
+
+/* ---------------------------------------------------------------- print */
+@media print {
+  :root { color-scheme: light; }
+  body { background: #fff; font-size: 10.5pt; padding: 0; }
+  .toolbar, .theme-toggle, .no-print { display: none !important; }
+  .card, .tile, .finding, .sev-tile { box-shadow: none; border: 1px solid #ccc; break-inside: avoid; }
+  .finding { break-inside: avoid; }
+  .fbody { display: block !important; }
+  section { break-inside: avoid-page; }
+  h2 { break-after: avoid; }
+  a { text-decoration: none; color: inherit; }
+  .wrap { max-width: none; padding: 0 8mm; }
+}
+
+/* ============================================================================
+   Comparison-report additions. Everything above is shared verbatim with the
+   security-audit report stylesheet so the three reports in a project folder
+   read as one document set.
+   ========================================================================= */
+
+/* Bucket is the primary axis of this report, so it gets a reserved colour role
+   each - always paired with a text label, never colour alone. */
+:root {
+  --bk-resolved:   #0ca30c;   /* gone in the modernized tree      */
+  --bk-inherited:  #fab219;   /* carried across the migration     */
+  --bk-introduced: #d03b3b;   /* created by the migration         */
+  --bk-newsurface: #2a78d6;   /* new architecture, new exposure   */
+  --bk-nocompare:  #78776f;   /* no counterpart to compare against */
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bk-resolved: #3cc13c; --bk-inherited: #ffc93f; --bk-introduced: #e85c5c;
+    --bk-newsurface: #3987e5; --bk-nocompare: #96958c;
+  }
+}
+:root[data-theme="dark"] {
+  --bk-resolved: #3cc13c; --bk-inherited: #ffc93f; --bk-introduced: #e85c5c;
+  --bk-newsurface: #3987e5; --bk-nocompare: #96958c;
+}
+
+/* ------------------------------------------------------------ bucket tiles */
+.bucket-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin: 16px 0 8px; }
+.bk-tile {
+  background: var(--surface-1); border: 1px solid var(--border); border-left: 4px solid var(--bk-nocompare);
+  border-radius: var(--radius); padding: 14px 16px; box-shadow: var(--shadow);
+}
+.bk-tile .n { font-size: 26px; font-weight: 650; line-height: 1; font-variant-numeric: tabular-nums; }
+.bk-tile .k { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-secondary); margin-top: 5px; display: flex; align-items: center; gap: 5px; }
+.bk-tile .d { font-size: 12px; color: var(--text-muted); margin-top: 6px; line-height: 1.45; }
+.bk-tile[data-bucket="resolved"]   { border-left-color: var(--bk-resolved); }
+.bk-tile[data-bucket="inherited"]  { border-left-color: var(--bk-inherited); }
+.bk-tile[data-bucket="introduced"] { border-left-color: var(--bk-introduced); }
+.bk-tile[data-bucket="new-surface"]{ border-left-color: var(--bk-newsurface); }
+.bk-tile[data-bucket="not-comparable"] { border-left-color: var(--bk-nocompare); }
+
+.bk-pill {
+  display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: .05em; padding: 3px 9px; border-radius: 999px;
+  border: 1px solid var(--border-strong); color: var(--text-primary); background: var(--surface-2);
+}
+.bk-pill .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--bk-nocompare); }
+.bk-pill[data-bucket="resolved"]    .dot { background: var(--bk-resolved); }
+.bk-pill[data-bucket="inherited"]   .dot { background: var(--bk-inherited); }
+.bk-pill[data-bucket="introduced"]  .dot { background: var(--bk-introduced); }
+.bk-pill[data-bucket="new-surface"] .dot { background: var(--bk-newsurface); }
+
+/* --------------------------------------------------- side-by-side compare */
+.side-by-side { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 12px; }
+.side { background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; }
+.side h5 { margin: 0 0 8px; font-size: 11px; text-transform: uppercase; letter-spacing: .07em; color: var(--text-muted); font-weight: 650; }
+.side .none { color: var(--text-muted); font-style: italic; font-size: 13px; }
+.side-arrow { display: flex; align-items: center; justify-content: center; color: var(--text-muted); font-size: 20px; }
+@media (max-width: 760px) { .side-by-side { grid-template-columns: 1fr; } }
+
+/* ------------------------------------------------------------ score deltas */
+.delta { font-variant-numeric: tabular-nums; font-weight: 650; }
+.delta.up   { color: var(--st-good); }
+.delta.down { color: var(--st-critical); }
+.delta.flat { color: var(--text-muted); }
+.cat-delta-table td.num { text-align: right; }
+
+/* the two-tone category bar: legacy vs modernized on one track */
+.cmp-bar-row { display: grid; grid-template-columns: 200px 1fr 64px; gap: 12px; align-items: center; margin-bottom: 9px; }
+.cmp-track { position: relative; height: 22px; background: var(--surface-2); border-radius: 5px; overflow: hidden; }
+.cmp-seg { position: absolute; top: 0; height: 11px; border-radius: 3px; }
+.cmp-seg.lg { top: 0; background: var(--st-neutral); }
+.cmp-seg.md { top: 11px; background: var(--series-1); }
+@media (max-width: 700px) { .cmp-bar-row { grid-template-columns: 120px 1fr 54px; } }
+
+/* ------------------------------------------------------- coverage warnings */
+.coverage { border-left: 4px solid var(--st-warning); background: var(--surface-2);
+  border-radius: 8px; padding: 14px 16px; margin-bottom: 12px; }
+.coverage h4 { margin: 0 0 6px; font-size: 15px; }
+.coverage .why { color: var(--text-secondary); font-size: 13.5px; margin: 0 0 6px; line-height: 1.55; }
+
+/* ------------------------------------------------------------- match badge */
+.match { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; padding: 2px 8px;
+  border-radius: 999px; border: 1px dashed var(--border-strong); color: var(--text-muted); }
+.match[data-c="Tentative"] { border-style: dotted; color: var(--st-warning); border-color: var(--st-warning); }
+
+/* --------------------------------------------------------------- cost rows */
+.phase-cost td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.phase-cost tr.total td { font-weight: 650; border-top: 2px solid var(--border-strong); }
+</style>
+</head>
+<body>
+<script id="compare-data" type="application/json">
+{
+  "schemaVersion": "1.0",
+  "meta": {
+    "projectName": "AcmeBilling",
+    "scanDate": "2026-09-11",
+    "analyst": "Claude Code - security-audit-compare skill v1.0",
+    "depth": "standard",
+    "comparisonDepth": "full",
+    "comparedCount": 6,
+    "subtitle": "Informix 4GL to .NET 10 / Blazor Server - migration security comparison",
+    "verdict": "The migration eliminated the legacy system's SQL injection surface almost entirely by moving data access to EF Core, and that is a real gain. It did not, however, carry over the operator sign-on: the modernized application has no authentication at all, so every record the legacy system kept behind a terminal login is now reachable anonymously over the internet. Two legacy findings also vanished only because nightly batch invoicing was never migrated - they will return with the feature. Net posture is worse than before the migration despite the injection win.",
+    "scoreCaveat": "Both sides are scored with the default-v1 profile and identical weights, but not identical exposure: the legacy application was reachable only from a private terminal network, while the modernized one is internet-facing. Read the category movement rather than the headline numbers alone.",
+    "legacy": {
+      "targetPath": "C:/src/acme/legacy",
+      "stack": "Informix 4GL, ESQL/C",
+      "reportFile": "AcmeBilling - Legacy - Security analysis report. - 2026-09-11.html",
+      "findingsCount": 5,
+      "mode": "analyze",
+      "depth": "standard"
+    },
+    "modernized": {
+      "targetPath": "C:/src/acme/modern",
+      "stack": ".NET 10, Blazor Server, EF Core",
+      "reportFile": "AcmeBilling - Modernized - Security analysis report. - 2026-09-11.html",
+      "findingsCount": 4,
+      "mode": "plan",
+      "depth": "standard"
+    }
+  },
+
+  "scores": {
+    "profile": "default-v1",
+    "legacy": { "score": 58, "grade": "F", "posture": "At Risk" },
+    "modernized": { "score": 49, "grade": "F", "posture": "Critical" },
+    "projected": { "score": 91, "grade": "A-", "posture": "Hardened" },
+    "categories": [
+      { "key": "access-control", "name": "Access Control", "owasp": "A01", "weight": 22,
+        "legacy": 55, "modernized": 10,
+        "note": "The legacy terminal sign-on was not reproduced. The web application has no authN/authZ of any kind." },
+      { "key": "injection", "name": "Injection", "owasp": "A03", "weight": 14,
+        "legacy": 10, "modernized": 55,
+        "note": "Eleven of twelve hand-built statements became parameterized LINQ. One raw-SQL search survived the port." },
+      { "key": "xss", "name": "Cross-Site Scripting", "owasp": "A03", "weight": 8,
+        "legacy": 100, "modernized": 88,
+        "note": "Not applicable to a terminal UI. Razor auto-encodes, but one MarkupString sink takes user input." },
+      { "key": "misconfiguration", "name": "Security Misconfiguration", "owasp": "A05", "weight": 13,
+        "legacy": 88, "modernized": 76,
+        "note": "New web surface brings headers, CORS and cookie policy that had no legacy equivalent." },
+      { "key": "cryptographic", "name": "Cryptographic Failures", "owasp": "A02", "weight": 10,
+        "legacy": 55, "modernized": 100,
+        "note": "Legacy stored operator passwords as unsalted MD5. That table and its code were not migrated." },
+      { "key": "authentication", "name": "Authentication Failures", "owasp": "A07", "weight": 8,
+        "legacy": 75, "modernized": 10,
+        "note": "A weak control replaced by no control." },
+      { "key": "logging", "name": "Logging & Monitoring", "owasp": "A09", "weight": 7,
+        "legacy": 95, "modernized": 95, "note": null },
+      { "key": "validation", "name": "Input Validation", "owasp": "A04", "weight": 9,
+        "legacy": 95, "modernized": 95, "note": null },
+      { "key": "dependencies", "name": "Vulnerable & Outdated Components", "owasp": "A06", "weight": 5,
+        "legacy": null, "modernized": null,
+        "note": "Not assessed on either side - no advisory source was reachable during either run." },
+      { "key": "integrity", "name": "Software & Data Integrity", "owasp": "A08", "weight": 2,
+        "legacy": 95, "modernized": 95, "note": null },
+      { "key": "ssrf", "name": "Server-Side Request Forgery", "owasp": "A10", "weight": 2,
+        "legacy": null, "modernized": 100,
+        "note": "No outbound HTTP existed in the legacy system; the category did not apply." }
+    ]
+  },
+
+  "functionalAreas": [
+    { "name": "Customer record CRUD", "legacyPaths": ["custmaint.4gl", "custlook.4gl"],
+      "modernPaths": ["Pages/Customers.razor", "Services/CustomerService.cs"], "counterpart": "both" },
+    { "name": "Order entry and posting", "legacyPaths": ["ordent.4gl"],
+      "modernPaths": ["Pages/Orders.razor"], "counterpart": "both" },
+    { "name": "Operator sign-on", "legacyPaths": ["signon.4gl"], "modernPaths": [],
+      "counterpart": "legacy-only",
+      "note": "No login page, identity provider registration or session concept anywhere in the modernized tree." },
+    { "name": "Nightly batch invoicing", "legacyPaths": ["invbatch.4gl"], "modernPaths": [],
+      "counterpart": "legacy-only", "note": "No scheduled-job equivalent found." },
+    { "name": "Public status page", "legacyPaths": [], "modernPaths": ["Pages/Status.razor"],
+      "counterpart": "modern-only" }
+  ],
+
+  "items": [
+    {
+      "id": "C-1",
+      "bucket": "introduced",
+      "title": "No authentication or authorization anywhere in the application",
+      "severity": "Critical",
+      "category": "access-control",
+      "functionalArea": "Application-wide",
+      "owasp": "A01:2021 Broken Access Control",
+      "cwe": ["CWE-862", "CWE-306"],
+      "attack": [{ "id": "T1190", "name": "Exploit Public-Facing Application" }],
+      "nist": { "ssdf": ["PW.5"], "sp80053": ["AC-3", "IA-2"] },
+      "modernized": {
+        "id": "M-1",
+        "severity": "Critical",
+        "confidence": "Confirmed",
+        "evidence": "Zero [Authorize] attributes across 148 files. No AddAuthentication, AddAuthorization, UseAuthentication or UseAuthorization in Program.cs. MapBlazorHub() is mapped without RequireAuthorization().",
+        "locations": [
+          { "file": "Program.cs", "line": 22, "excerpt": "app.MapBlazorHub();\napp.MapFallbackToPage(\"/_Host\");" },
+          { "file": "Pages/Customers.razor", "line": 1, "excerpt": "@page \"/customers\"" }
+        ]
+      },
+      "match": {
+        "confidence": "Certain",
+        "basis": "The legacy audit assessed access control and recorded signon.4gl as a working, if weak, gate on every screen. The modernized tree has no equivalent, so this is a regression rather than a new surface."
+      },
+      "migrationNote": "signon.4gl authenticated every operator against the OPERATOR table before any screen opened, and no 4GL screen was reachable without it. The modernized application has no login page, no identity provider registration and no session concept. The control was not weakened in the migration - it was dropped, and the same data is now served anonymously over the public internet.",
+      "risk": "Any anonymous visitor who can reach the URL can read and modify every customer, order and invoice record, and can open a SignalR circuit to invoke server-side component logic.",
+      "remediation": {
+        "summary": "Register an identity provider and apply a global default-deny authorization policy.",
+        "nonBreaking": true,
+        "breakingChange": false,
+        "effort": "M",
+        "planned": true,
+        "steps": [
+          "Add AddAuthentication().AddOpenIdConnect(...) plus AddAuthorization(), and call UseAuthentication()/UseAuthorization() before UseAntiforgery().",
+          "Set a global fallback policy with AddAuthorizationBuilder().SetFallbackPolicy(RequireAuthenticatedUser()) so every page requires sign-in by default, with no per-page edits.",
+          "Mark login, health and error endpoints [AllowAnonymous].",
+          "Protect the circuit: MapBlazorHub().RequireAuthorization()."
+        ],
+        "codeBefore": "app.MapBlazorHub();\napp.MapFallbackToPage(\"/_Host\");",
+        "codeAfter": "app.UseAuthentication();\napp.UseAuthorization();\napp.MapBlazorHub().RequireAuthorization();\napp.MapFallbackToPage(\"/_Host\");",
+        "language": "csharp"
+      },
+      "verification": "An unauthenticated GET /customers returns 302 to the sign-in endpoint. After signing in the page renders exactly as it does today. dotnet build reports 0 errors.",
+      "references": [
+        { "label": "OWASP A01:2021", "url": "https://owasp.org/Top10/A01_2021-Broken_Access_Control/" }
+      ]
+    },
+
+    {
+      "id": "C-2",
+      "bucket": "inherited",
+      "title": "Customer search builds its WHERE clause by string concatenation",
+      "severity": "Critical",
+      "category": "injection",
+      "functionalArea": "Customer record CRUD",
+      "owasp": "A03:2021 Injection",
+      "cwe": ["CWE-89"],
+      "attack": [{ "id": "T1190", "name": "Exploit Public-Facing Application" }],
+      "nist": { "ssdf": ["PW.5"], "sp80053": ["SI-10"] },
+      "legacy": {
+        "id": "L-2",
+        "severity": "High",
+        "confidence": "Confirmed",
+        "evidence": "custlook.4gl builds the SELECT by concatenation before PREPARE; p_name comes straight from the screen field.",
+        "locations": [
+          { "file": "custlook.4gl", "line": 812,
+            "excerpt": "LET stmt = \"SELECT * FROM customer WHERE name LIKE '\", p_name CLIPPED, \"%'\"\nPREPARE s1 FROM stmt" }
+        ]
+      },
+      "modernized": {
+        "id": "M-2",
+        "severity": "Critical",
+        "confidence": "Confirmed",
+        "evidence": "CustomerService.Search interpolates the search term directly into FromSqlRaw. term is bound to the page's search box with no validation.",
+        "locations": [
+          { "file": "Services/CustomerService.cs", "line": 47,
+            "excerpt": "return _db.Customers.FromSqlRaw($\"SELECT * FROM Customers WHERE Name LIKE '%{term}%'\").ToList();" }
+        ]
+      },
+      "match": {
+        "confidence": "Certain",
+        "basis": "Same CWE-89 defect in the same customer-search routine. The 4GL concatenation was translated construct-for-construct into an interpolated C# string rather than a parameter."
+      },
+      "migrationNote": "The migration parameterized eleven of the twelve legacy queries by moving them to EF Core LINQ - a genuine and substantial improvement. This one was ported as raw SQL because of the LIKE wildcard, and the concatenation came across with it. Severity rises from High to Critical because the endpoint is now anonymous and internet-facing rather than behind the terminal sign-on.",
+      "risk": "An anonymous visitor can read, and with a stacked statement modify, any row in the billing database.",
+      "remediation": {
+        "summary": "Pass the search term as a parameter. The LIKE wildcards belong in the parameter value, not in the SQL text.",
+        "nonBreaking": true,
+        "breakingChange": false,
+        "effort": "S",
+        "planned": true,
+        "steps": [
+          "Replace FromSqlRaw with FromSqlInterpolated, which parameterizes interpolated holes automatically.",
+          "Or drop to LINQ entirely: _db.Customers.Where(c => EF.Functions.Like(c.Name, \"%\" + term + \"%\")).",
+          "Add a length cap and a character allow-list on the search term at the page boundary."
+        ],
+        "codeBefore": "_db.Customers.FromSqlRaw($\"SELECT * FROM Customers WHERE Name LIKE '%{term}%'\")",
+        "codeAfter": "_db.Customers.Where(c => EF.Functions.Like(c.Name, \"%\" + term + \"%\"))",
+        "language": "csharp"
+      },
+      "verification": "Search for ' OR 1=1 -- and confirm zero rows returned and no exception. dotnet build reports 0 errors.",
+      "references": [
+        { "label": "OWASP A03:2021", "url": "https://owasp.org/Top10/A03_2021-Injection/" }
+      ]
+    },
+
+    {
+      "id": "C-3",
+      "bucket": "new-surface",
+      "title": "No security response headers and a permissive CORS policy",
+      "severity": "Medium",
+      "category": "misconfiguration",
+      "functionalArea": "Application-wide",
+      "owasp": "A05:2021 Security Misconfiguration",
+      "cwe": ["CWE-693"],
+      "nist": { "ssdf": ["PW.9"], "sp80053": ["SC-8", "CM-6"] },
+      "modernized": {
+        "id": "M-3",
+        "severity": "Medium",
+        "confidence": "Confirmed",
+        "evidence": "No Content-Security-Policy, X-Content-Type-Options, Referrer-Policy or HSTS middleware in Program.cs. AddCors registers AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod().",
+        "locations": [
+          { "file": "Program.cs", "line": 14,
+            "excerpt": "builder.Services.AddCors(o => o.AddDefaultPolicy(p =>\n    p.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod()));" }
+        ]
+      },
+      "migrationNote": "No legacy counterpart is possible. The 4GL application had no HTTP surface at all, so response headers, CORS and cookie policy are risks the new architecture brings with it rather than anything the migration broke. They still need addressing before the application is exposed.",
+      "risk": "A permissive CORS policy lets any origin read authenticated responses once authentication exists. Missing CSP removes the last line of defence against an XSS sink such as C-4.",
+      "remediation": {
+        "summary": "Add a response-header middleware and replace the wildcard CORS policy with an explicit origin allow-list.",
+        "nonBreaking": true,
+        "breakingChange": false,
+        "effort": "S",
+        "planned": true,
+        "steps": [
+          "Add UseHsts() and a middleware setting Content-Security-Policy, X-Content-Type-Options: nosniff and Referrer-Policy: no-referrer.",
+          "Replace AllowAnyOrigin() with WithOrigins(<the application's own origins>).",
+          "Set cookie policy to SameSite=Strict, Secure and HttpOnly."
+        ],
+        "language": "csharp"
+      },
+      "verification": "curl -I against the deployed origin shows the four headers. A cross-origin fetch from an unlisted origin is rejected by the browser.",
+      "references": [
+        { "label": "OWASP Secure Headers", "url": "https://owasp.org/www-project-secure-headers/" }
+      ]
+    },
+
+    {
+      "id": "C-4",
+      "bucket": "resolved",
+      "title": "Operator passwords stored as unsalted MD5",
+      "severity": "High",
+      "category": "cryptographic",
+      "functionalArea": "Operator sign-on",
+      "owasp": "A02:2021 Cryptographic Failures",
+      "cwe": ["CWE-916", "CWE-759"],
+      "nist": { "ssdf": ["PW.4"], "sp80053": ["IA-5"] },
+      "legacy": {
+        "id": "L-4",
+        "severity": "High",
+        "confidence": "Confirmed",
+        "evidence": "signon.4gl hashes the entered password with a local MD5 routine and compares it to OPERATOR.PASSWD. No salt, no iteration count.",
+        "locations": [
+          { "file": "signon.4gl", "line": 96,
+            "excerpt": "CALL md5_hash(p_passwd) RETURNING l_hash\nSELECT COUNT(*) INTO l_cnt FROM operator\n  WHERE opid = p_opid AND passwd = l_hash" }
+        ]
+      },
+      "resolution": {
+        "reason": "feature-not-migrated",
+        "detail": "The hash is gone because signon.4gl is gone. No credential storage of any kind exists in the modernized tree, because no authentication exists in it either. This is not a cryptographic improvement - it is the same gap recorded as C-1, seen from the other side."
+      },
+      "match": {
+        "confidence": "Certain",
+        "basis": "Operator sign-on maps to no modernized path; the whole functional area is absent."
+      },
+      "migrationNote": "Counting this as a resolved cryptographic finding would be misleading. The weak hash disappeared along with the control it protected, and whatever identity provider eventually lands must not reintroduce it.",
+      "risk": "No current risk in the modernized codebase - but the control this finding belonged to is missing entirely. See C-1."
+    },
+
+    {
+      "id": "C-5",
+      "bucket": "resolved",
+      "title": "Order total recomputed from unvalidated screen input in the posting routine",
+      "severity": "High",
+      "category": "injection",
+      "functionalArea": "Order entry and posting",
+      "owasp": "A03:2021 Injection",
+      "cwe": ["CWE-89"],
+      "legacy": {
+        "id": "L-5",
+        "severity": "High",
+        "confidence": "Confirmed",
+        "evidence": "ordent.4gl concatenates the quantity field into an UPDATE statement without binding.",
+        "locations": [
+          { "file": "ordent.4gl", "line": 433,
+            "excerpt": "LET stmt = \"UPDATE orders SET qty = \", p_qty CLIPPED, \" WHERE ordnum = \", p_ord CLIPPED\nEXECUTE IMMEDIATE stmt" }
+        ]
+      },
+      "resolution": {
+        "reason": "fixed-by-construction",
+        "detail": "Order posting moved to EF Core change tracking. The generated UPDATE is parameterized by the provider, and there is no string-built SQL anywhere in OrderService.cs. The defect cannot recur in this code path without reintroducing raw SQL."
+      },
+      "match": {
+        "confidence": "Certain",
+        "basis": "Order entry and posting maps cleanly to Pages/Orders.razor and OrderService.cs; the modernized audit assessed injection there and recorded a strength, not a finding."
+      },
+      "migrationNote": "A genuine win, and the clearest example of what the ORM migration bought. Eleven legacy statements were resolved this way; this one is representative.",
+      "risk": "None in the modernized codebase."
+    },
+
+    {
+      "id": "C-6",
+      "bucket": "not-comparable",
+      "title": "Nightly invoice batch writes a plaintext credential file to /tmp",
+      "severity": "Medium",
+      "category": "cryptographic",
+      "functionalArea": "Nightly batch invoicing",
+      "owasp": "A02:2021 Cryptographic Failures",
+      "cwe": ["CWE-256"],
+      "legacy": {
+        "id": "L-3",
+        "severity": "Medium",
+        "confidence": "Likely",
+        "evidence": "invbatch.4gl writes the database connection credentials to a temp file consumed by the ESQL/C child process; the file is world-readable and not removed on failure.",
+        "locations": [
+          { "file": "invbatch.4gl", "line": 210,
+            "excerpt": "LET tmpf = \"/tmp/invrun.cfg\"\nSTART REPORT inv_rpt TO tmpf" }
+        ]
+      },
+      "resolution": {
+        "reason": "feature-not-migrated",
+        "detail": "Nightly batch invoicing has no modernized counterpart at all - no hosted service, no scheduled job, no equivalent entry point anywhere in the tree."
+      },
+      "match": {
+        "confidence": "Tentative",
+        "basis": "Filed as not-comparable rather than resolved: the modernized side has nothing to compare against, and it is not established whether batch invoicing is out of scope permanently or simply not built yet."
+      },
+      "migrationNote": "Whether this is a resolved finding or an open one depends on a roadmap question this audit cannot answer. If batch invoicing is still to be delivered, the credential-handling requirement travels with it."
+    }
+  ],
+
+  "coverageRisks": [
+    {
+      "area": "Operator sign-on",
+      "why": "signon.4gl authenticated every operator against the OPERATOR table before any screen opened. Nothing equivalent exists in the modernized tree: no login page, no identity provider registration, no session concept. Two legacy findings disappear with this code - but so does the control itself.",
+      "findings": ["C-4"],
+      "recommendation": "Treat sign-on as an open migration item rather than a resolved risk. Design its replacement before the application is exposed, and ensure the new credential store uses a memory-hard KDF rather than reproducing the legacy MD5."
+    },
+    {
+      "area": "Nightly batch invoicing",
+      "why": "invbatch.4gl has no counterpart in the modernized tree. One legacy finding vanishes with it, but no decision is recorded anywhere as to whether the capability is retired or merely unbuilt.",
+      "findings": ["C-6"],
+      "recommendation": "Confirm with the delivery team whether batch invoicing is still in scope. If it is, the credential-handling requirement travels with the feature and should be designed in now rather than rediscovered later."
+    }
+  ],
+
+  "roadmap": [
+    { "phase": 1, "name": "Restore access control", "findings": ["C-1", "C-4"],
+      "effort": "M", "scoreAfter": 76,
+      "rationale": "The single largest regression and the largest coverage gap are the same gap seen twice. A global fallback policy plus an identity provider closes both, and nothing else in the plan is worth doing before the application stops serving billing data anonymously." },
+    { "phase": 2, "name": "Close the surviving injection path", "findings": ["C-2"],
+      "effort": "S", "scoreAfter": 86,
+      "rationale": "One file, one statement, no behaviour change. The cheapest remaining risk reduction in the plan." },
+    { "phase": 3, "name": "Harden the new web surface", "findings": ["C-3"],
+      "effort": "S", "scoreAfter": 91,
+      "rationale": "Headers and CORS matter most once authentication exists, so they follow phase 1 rather than leading." }
+  ],
+
+  "cost": {
+    "source": "transcript",
+    "phases": [
+      { "name": "Legacy audit",
+        "byModel": [
+          { "model": "claude-opus-5", "priced": true, "messages": 31,
+            "tokens": { "input": 1420, "cacheWrite5m": 74200, "cacheWrite1h": 0, "cacheRead": 1240180, "output": 41200, "total": 1357000 },
+            "costUSD": { "input": 0.0071, "cacheWrite5m": 0.4638, "cacheWrite1h": 0.0, "cacheRead": 0.6201, "output": 1.03, "total": 2.121 } }
+        ],
+        "subtotalTokens": 1357000, "subtotalCostUSD": 2.121 },
+      { "name": "Modernized audit",
+        "byModel": [
+          { "model": "claude-opus-5", "priced": true, "messages": 44,
+            "tokens": { "input": 1980, "cacheWrite5m": 96400, "cacheWrite1h": 0, "cacheRead": 1840220, "output": 58310, "total": 1996910 },
+            "costUSD": { "input": 0.0099, "cacheWrite5m": 0.6025, "cacheWrite1h": 0.0, "cacheRead": 0.9201, "output": 1.4578, "total": 2.9903 } }
+        ],
+        "subtotalTokens": 1996910, "subtotalCostUSD": 2.9903 },
+      { "name": "Comparison",
+        "byModel": [
+          { "model": "claude-opus-5", "priced": true, "messages": 18,
+            "tokens": { "input": 860, "cacheWrite5m": 41300, "cacheWrite1h": 0, "cacheRead": 604100, "output": 22400, "total": 668660 },
+            "costUSD": { "input": 0.0043, "cacheWrite5m": 0.2581, "cacheWrite1h": 0.0, "cacheRead": 0.3021, "output": 0.56, "total": 1.1245 } }
+        ],
+        "subtotalTokens": 668660, "subtotalCostUSD": 1.1245 }
+    ],
+    "totals": { "totalTokens": 4022570, "totalCostUSD": 6.2358 },
+    "pricingVersion": "2026-06-24",
+    "note": "Measured from the session transcript and segmented per phase by watermark. Assistant messages are deduplicated by message id. Dollar figures use the list rates in assets/pricing.json and exclude any enterprise discount, Batch API discount or partner-platform pricing."
+  },
+
+  "methodology": [
+    "Both codebases were audited independently with the security-audit skill at standard depth using the default-v1 scoring profile, before any comparison was attempted. Neither score was recomputed here.",
+    "Findings were paired on weakness class (primary CWE) plus functional area, never on file path - the two trees share no layout. The functional area map was built from both inventories and both sets of finding locations before any classification began.",
+    "Every pairing carries a published match confidence. Pairings weaker than Tentative were rejected and both findings left unpaired rather than forced together.",
+    "Modernized-only findings were separated into regressions - where the legacy system occupied the same ground and the legacy audit assessed that category as clean - and new surface, where the weakness class could not arise in a terminal application at all.",
+    "Every resolved finding was interrogated for whether it was fixed or merely disappeared with unmigrated code. Two of the three fell into the latter case and are listed as coverage risks."
+  ],
+
+  "limitations": [
+    "Static analysis only. Neither application was built, deployed or exercised at runtime.",
+    "Findings were paired by a model reading both codebases, not by a mechanical identity. One pairing (C-6) is marked Tentative and should be confirmed by someone who knows both systems.",
+    "The legacy audit ran in analyze mode and produced no remediation guidance by design. All remediation in this report applies to the modernized codebase only.",
+    "Exposure differs between the two systems - the legacy application was reachable only from a private terminal network - so equal severities across the two columns do not imply equal risk.",
+    "Dependency advisories were not verified against a live vulnerability database on either side; the dependencies category is unassessed in both audits and excluded from both scores.",
+    "Two legacy functional areas (operator sign-on, nightly batch invoicing) have no modernized counterpart. Whether that reflects a scope decision or unbuilt work is not determinable from the code."
+  ]
+}
+</script>
+
+<div id="root"></div>
+
+<script>
+/* ============================================================================
+   Migration security comparison - renderer.
+   Reads the JSON block above and builds the report. The comparison writes DATA,
+   never markup: everything below is generic and never changes per project.
+   ========================================================================= */
+(function () {
+  "use strict";
+
+  var DATA;
+  try {
+    DATA = JSON.parse(document.getElementById("compare-data").textContent);
+  } catch (err) {
+    document.getElementById("root").innerHTML =
+      '<div class="wrap"><div class="card" style="margin-top:40px">' +
+      '<h3>This report could not be rendered</h3>' +
+      '<p>The embedded comparison JSON is not valid: <code></code></p>' +
+      '<p style="color:var(--text-muted)">Validate ' +
+      '<code>.security-audit/comparison/comparison.json</code> before concatenating the report.</p>' +
+      '</div></div>';
+    document.querySelector("#root code").textContent = err.message;
+    return;
+  }
+
+  /* ---------------------------------------------------------------- utils */
+  var SEVS = ["Critical", "High", "Medium", "Low", "Info"];
+  var SEV_RANK = { Critical: 0, High: 1, Medium: 2, Low: 3, Info: 4 };
+
+  var BUCKETS = [
+    { key: "introduced",     label: "Introduced",     blurb: "Created by the modernization. Absent from the legacy system." },
+    { key: "inherited",      label: "Inherited",      blurb: "Present before and after. The migration carried the flaw across." },
+    { key: "new-surface",    label: "New surface",    blurb: "New architecture, new exposure. No legacy equivalent could exist." },
+    { key: "resolved",       label: "Resolved",       blurb: "Present in the legacy system, gone in the modernized one." },
+    { key: "not-comparable", label: "Not comparable", blurb: "No counterpart existed to compare against." }
+  ];
+  var BK = {};
+  BUCKETS.forEach(function (b) { BK[b.key] = b; });
+  /* Buckets an engineer still has to act on, in the order they should act. */
+  var ACTIONABLE = ["introduced", "inherited", "new-surface"];
+
+  function esc(s) {
+    if (s === null || s === undefined) return "";
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+  function arr(x) { return Array.isArray(x) ? x : []; }
+  function has(x) { return x !== null && x !== undefined && x !== ""; }
+  function num(n, d) {
+    return (typeof n === "number" && isFinite(n))
+      ? n.toLocaleString(undefined, { maximumFractionDigits: d === undefined ? 0 : d }) : "-";
+  }
+  function money(n) {
+    if (typeof n !== "number" || !isFinite(n)) return "-";
+    return "$" + n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: n < 1 ? 4 : 2 });
+  }
+  function kv(k, v) {
+    if (!has(v)) return "";
+    return "<div><dt>" + esc(k) + "</dt><dd>" + v + "</dd></div>";
+  }
+  function sevIcon(s) {
+    var g = { Critical: "&#9679;", High: "&#9650;", Medium: "&#9632;", Low: "&#9670;", Info: "&#9675;" };
+    return '<span class="sev-pill" data-sev="' + esc(s) + '">' + (g[s] || "&#9675;") + '</span>';
+  }
+  function bkPill(b) {
+    var d = BK[b];
+    return '<span class="bk-pill" data-bucket="' + esc(b) + '"><span class="dot"></span>' +
+           esc(d ? d.label : b) + '</span>';
+  }
+  function deltaSpan(v, betterIsUp) {
+    if (typeof v !== "number" || !isFinite(v)) return '<span class="delta flat">-</span>';
+    var good = (v > 0) === (betterIsUp !== false);
+    var cls = v === 0 ? "flat" : (good ? "up" : "down");
+    return '<span class="delta ' + cls + '">' + (v > 0 ? "+" : "") + num(v, 1) + '</span>';
+  }
+
+  var meta    = DATA.meta || {};
+  var scores  = DATA.scores || {};
+  var legacyS = scores.legacy || null;
+  var modernS = scores.modernized || null;
+
+  var items = arr(DATA.items).slice().sort(function (a, b) {
+    var ai = ACTIONABLE.indexOf(a.bucket), bi = ACTIONABLE.indexOf(b.bucket);
+    if (ai < 0) { ai = 9; }
+    if (bi < 0) { bi = 9; }
+    if (ai !== bi) return ai - bi;
+    var as = SEV_RANK[a.severity], bs = SEV_RANK[b.severity];
+    if (as === undefined) { as = 9; }
+    if (bs === undefined) { bs = 9; }
+    if (as !== bs) return as - bs;
+    return String(a.id).localeCompare(String(b.id), undefined, { numeric: true });
+  });
+
+  var out = [];
+
+  /* ---------------------------------------------------------------- header */
+  var title = (meta.projectName || "Untitled project") + " - Migration security comparison";
+  document.title = title;
+
+  var lg = meta.legacy || {};
+  var md = meta.modernized || {};
+
+  out.push(
+    '<header class="masthead"><div class="wrap">' +
+      '<button class="theme-toggle no-print" id="themeBtn" type="button">Theme</button>' +
+      '<h1>' + esc(title) + '</h1>' +
+      '<p class="sub">' + esc(meta.subtitle ||
+         "Legacy vs Modernized - what the migration fixed, carried across, and created") + '</p>' +
+      '<dl class="meta-grid">' +
+        kv("Legacy", esc(lg.stack || "-") +
+            (has(lg.targetPath) ? '<br><span style="color:var(--text-muted)">' + esc(lg.targetPath) + '</span>' : "")) +
+        kv("Modernized", esc(md.stack || "-") +
+            (has(md.targetPath) ? '<br><span style="color:var(--text-muted)">' + esc(md.targetPath) + '</span>' : "")) +
+        kv("Date", meta.scanDate) +
+        kv("Analyst", meta.analyst) +
+        kv("Depth", meta.depth) +
+        kv("Findings compared", has(meta.comparedCount) ? num(meta.comparedCount) : null) +
+      '</dl>' +
+    '</div></header>'
+  );
+
+  out.push('<div class="wrap">');
+
+  /* ------------------------------------------------------------- 0. verdict */
+  if (has(meta.verdict)) {
+    out.push(
+      '<section id="verdict"><h2>Verdict</h2>' +
+      '<div class="card"><p style="margin:0;font-size:15.5px;line-height:1.65">' +
+      esc(meta.verdict) + '</p></div></section>'
+    );
+  }
+
+  /* ------------------------------------------------------------- 1. scores */
+  function scoreTile(label, s, foot) {
+    if (!s) {
+      return '<div class="tile"><div class="label">' + esc(label) + '</div>' +
+             '<div class="hero" style="color:var(--text-muted)">n/a</div>' +
+             '<div class="foot">Not assessed</div></div>';
+    }
+    return '<div class="tile">' +
+      '<div class="label">' + esc(label) + '</div>' +
+      '<div class="hero">' + esc(String(s.score)) + '<span class="of"> / 100</span></div>' +
+      '<div class="foot">' +
+        (has(s.grade) ? '<span class="grade">' + esc(s.grade) + '</span>' : "") +
+        (has(s.posture) ? '<span class="posture" data-band="' + esc(s.posture) + '"><span class="dot"></span>' +
+                          esc(s.posture) + '</span>' : "") +
+      '</div>' +
+      (has(foot) ? '<div class="foot" style="color:var(--text-muted);font-size:12px">' + esc(foot) + '</div>' : "") +
+      '</div>';
+  }
+
+  out.push('<section id="dashboard"><h2>Security posture, before and after</h2><div class="score-row">');
+  out.push(scoreTile("Legacy", legacyS, "Pre-migration baseline"));
+  out.push(scoreTile("Modernized", modernS, "Post-migration, as audited"));
+  if (legacyS && modernS && typeof legacyS.score === "number" && typeof modernS.score === "number") {
+    var d = modernS.score - legacyS.score;
+    out.push(
+      '<div class="tile"><div class="label">Migration delta</div>' +
+      '<div class="hero">' + deltaSpan(d) + '</div>' +
+      '<div class="foot">points of security posture ' + (d >= 0 ? "gained" : "lost") +
+      ' in the migration</div></div>'
+    );
+  }
+  if (scores.projected && has(scores.projected.score)) {
+    out.push(scoreTile("Projected", scores.projected, "Modernized, after the plan below"));
+  }
+  out.push('</div>');
+  if (has(meta.scoreCaveat)) {
+    out.push('<div class="warnbox" style="margin-top:14px">' + esc(meta.scoreCaveat) + '</div>');
+  }
+  out.push('</section>');
+
+  /* ------------------------------------------------------------ 2. buckets */
+  var counts = {};
+  BUCKETS.forEach(function (b) { counts[b.key] = 0; });
+  items.forEach(function (i) { if (counts[i.bucket] !== undefined) counts[i.bucket]++; });
+
+  out.push('<section id="buckets"><h2>What the migration did to the security posture</h2>');
+  out.push('<div class="bucket-row">');
+  BUCKETS.forEach(function (b) {
+    out.push(
+      '<div class="bk-tile" data-bucket="' + b.key + '">' +
+        '<div class="n">' + counts[b.key] + '</div>' +
+        '<div class="k">' + esc(b.label) + '</div>' +
+        '<div class="d">' + esc(b.blurb) + '</div>' +
+      '</div>'
+    );
+  });
+  out.push('</div>');
+
+  var sevL = {}, sevM = {};
+  SEVS.forEach(function (s) { sevL[s] = 0; sevM[s] = 0; });
+  items.forEach(function (i) {
+    if (i.legacy && sevL[i.legacy.severity] !== undefined) sevL[i.legacy.severity]++;
+    if (i.modernized && sevM[i.modernized.severity] !== undefined) sevM[i.modernized.severity]++;
+  });
+  out.push(
+    '<h3>Findings by severity, on each side</h3>' +
+    '<div class="table-scroll"><table class="cat-delta-table"><thead><tr>' +
+    '<th>Severity</th><th class="num">Legacy</th><th class="num">Modernized</th><th class="num">Change</th>' +
+    '</tr></thead><tbody>' +
+    SEVS.map(function (s) {
+      return '<tr><td>' + sevIcon(s) + ' ' + esc(s) + '</td>' +
+        '<td class="num">' + sevL[s] + '</td>' +
+        '<td class="num">' + sevM[s] + '</td>' +
+        '<td class="num">' + deltaSpan(sevM[s] - sevL[s], false) + '</td></tr>';
+    }).join("") +
+    '</tbody></table></div>' +
+    '<p class="count-note">Counts are of compared findings on each side. A finding present in both ' +
+    'codebases is counted once per side, so the two columns are directly comparable.</p>'
+  );
+  out.push('</section>');
+
+  /* -------------------------------------------------- 3. category compare */
+  var cats = arr(scores.categories).filter(function (c) {
+    return has(c.legacy) || has(c.modernized);
+  });
+  if (cats.length) {
+    out.push('<section id="categories"><h2>Category scores, legacy vs modernized</h2><div class="card">');
+    out.push(
+      '<div class="legend">' +
+        '<span class="key"><span class="swatch" style="background:var(--st-neutral)"></span>Legacy</span>' +
+        '<span class="key"><span class="swatch" style="background:var(--series-1)"></span>Modernized</span>' +
+        '<span class="key" style="color:var(--text-muted)">Scored 0-100 within each category; ' +
+        'weight sets its share of the overall score.</span>' +
+      '</div><div style="margin-top:14px">'
+    );
+    cats.forEach(function (c) {
+      var l = typeof c.legacy === "number" ? c.legacy : null;
+      var m = typeof c.modernized === "number" ? c.modernized : null;
+      out.push(
+        '<div class="cmp-bar-row">' +
+          '<div>' + esc(c.name || c.key) +
+            (has(c.weight) ? ' <span style="color:var(--text-muted);font-size:12px">w' + esc(c.weight) + '</span>' : "") +
+          '</div>' +
+          '<div class="cmp-track">' +
+            (l !== null ? '<div class="cmp-seg lg" style="width:' + Math.max(0, Math.min(100, l)) + '%"></div>' : "") +
+            (m !== null ? '<div class="cmp-seg md" style="width:' + Math.max(0, Math.min(100, m)) + '%"></div>' : "") +
+          '</div>' +
+          '<div class="num" style="text-align:right">' +
+            (l !== null && m !== null ? deltaSpan(m - l) : '<span class="delta flat">-</span>') +
+          '</div>' +
+        '</div>' +
+        (has(c.note) ? '<p class="count-note" style="margin:-4px 0 10px 0">' + esc(c.note) + '</p>' : "")
+      );
+    });
+    out.push('</div>');
+    out.push(
+      '<div class="table-scroll" style="margin-top:18px"><table class="cat-delta-table"><thead><tr>' +
+      '<th>Category</th><th class="num">Weight</th><th class="num">Legacy</th>' +
+      '<th class="num">Modernized</th><th class="num">Change</th>' +
+      '</tr></thead><tbody>' +
+      cats.map(function (c) {
+        var l = typeof c.legacy === "number" ? c.legacy : null;
+        var m = typeof c.modernized === "number" ? c.modernized : null;
+        return '<tr><td>' + esc(c.name || c.key) + '</td>' +
+          '<td class="num">' + (has(c.weight) ? esc(c.weight) : "-") + '</td>' +
+          '<td class="num">' + (l === null ? '<span style="color:var(--text-muted)">n/a</span>' : l) + '</td>' +
+          '<td class="num">' + (m === null ? '<span style="color:var(--text-muted)">n/a</span>' : m) + '</td>' +
+          '<td class="num">' + (l !== null && m !== null ? deltaSpan(m - l) : "-") + '</td></tr>';
+      }).join("") +
+      '</tbody></table></div>'
+    );
+    out.push('</div></section>');
+  }
+
+  /* --------------------------------------------------- 4. coverage risks */
+  var cov = arr(DATA.coverageRisks);
+  if (cov.length) {
+    out.push(
+      '<section id="coverage"><h2>Resolved, or simply not migrated?</h2>' +
+      '<p class="count-note" style="margin-bottom:14px">' +
+      'A vulnerability that disappeared because the feature carrying it was never migrated is not a ' +
+      'fix. It is an open migration item, and the flaw returns with the feature unless the new design ' +
+      'addresses it. These are listed separately for that reason.' +
+      '</p>'
+    );
+    cov.forEach(function (c) {
+      out.push(
+        '<div class="coverage">' +
+          '<h4>' + esc(c.area || c.title || "Unmigrated area") + '</h4>' +
+          (has(c.why) ? '<p class="why">' + esc(c.why) + '</p>' : "") +
+          (arr(c.findings).length
+            ? '<p style="margin:0;font-size:13px">Legacy findings that vanish with it: ' +
+              arr(c.findings).map(function (id) {
+                return '<a href="#' + esc(id) + '" class="tag">' + esc(id) + '</a>';
+              }).join(" ") + '</p>'
+            : "") +
+          (has(c.recommendation)
+            ? '<p class="why" style="margin:8px 0 0"><strong>Carry forward:</strong> ' + esc(c.recommendation) + '</p>'
+            : "") +
+        '</div>'
+      );
+    });
+    out.push('</section>');
+  }
+
+  /* ------------------------------------------------------------- 5. items */
+  function sideBlock(label, s, fallbackText) {
+    if (!s) {
+      return '<div class="side"><h5>' + esc(label) + '</h5>' +
+             '<p class="none">' + esc(fallbackText) + '</p></div>';
+    }
+    var locs = arr(s.locations).map(function (l) {
+      return '<div class="loc"><span class="path">' + esc(l.file) + '</span>' +
+             (has(l.line) ? '<span style="color:var(--text-muted)">:' + esc(l.line) + '</span>' : "") +
+             (has(l.excerpt) ? '<span class="code">' + esc(l.excerpt) + '</span>' : "") + '</div>';
+    }).join("");
+    return '<div class="side"><h5>' + esc(label) + '</h5>' +
+      '<p style="margin:0 0 8px;font-size:13px">' +
+        (has(s.id) ? '<span class="tag">' + esc(s.id) + '</span> ' : "") +
+        (has(s.severity) ? sevIcon(s.severity) + " " + esc(s.severity) : "") +
+        (has(s.confidence) ? ' <span class="conf">' + esc(s.confidence) + '</span>' : "") +
+      '</p>' +
+      (has(s.evidence)
+        ? '<p style="margin:0 0 8px;font-size:13px;color:var(--text-secondary);line-height:1.55">' +
+          esc(s.evidence) + '</p>'
+        : "") +
+      (locs || '<p class="none">No locations recorded.</p>') +
+      '</div>';
+  }
+
+  function itemCard(i) {
+    var tags = [];
+    if (has(i.owasp)) tags.push('<span class="tag">' + esc(i.owasp) + '</span>');
+    arr(i.cwe).forEach(function (c) { tags.push('<span class="tag">' + esc(c) + '</span>'); });
+    arr(i.attack).forEach(function (a) {
+      tags.push('<span class="tag">ATT&amp;CK ' + esc(a.id) + (has(a.name) ? " " + esc(a.name) : "") + '</span>');
+    });
+    if (i.nist) {
+      arr(i.nist.ssdf).forEach(function (n) { tags.push('<span class="tag">SSDF ' + esc(n) + '</span>'); });
+      arr(i.nist.sp80053).forEach(function (n) { tags.push('<span class="tag">800-53 ' + esc(n) + '</span>'); });
+    }
+    if (has(i.functionalArea)) tags.push('<span class="tag">' + esc(i.functionalArea) + '</span>');
+
+    var s = [];
+    s.push('<details class="finding" id="' + esc(i.id) + '" data-bucket="' + esc(i.bucket) +
+           '" data-sev="' + esc(i.severity) + '">');
+    s.push(
+      '<summary>' +
+        '<span class="chev"></span>' +
+        '<span class="sev-pill" data-sev="' + esc(i.severity) + '">' + esc(i.severity) + '</span>' +
+        bkPill(i.bucket) +
+        '<span class="ftitle">' + esc(i.id) + ". " + esc(i.title) + '</span>' +
+      '</summary>'
+    );
+    s.push('<div class="fbody">');
+    if (tags.length) s.push('<div class="fblock"><div class="h">Standards</div>' + tags.join("") + '</div>');
+
+    if (has(i.migrationNote)) {
+      s.push('<div class="fblock"><div class="h">What the migration did</div>' +
+             '<p style="margin:0">' + esc(i.migrationNote) + '</p></div>');
+    }
+
+    /* The side-by-side is the point of this report - always render both columns. */
+    s.push('<div class="fblock"><div class="h">Evidence on each side</div><div class="side-by-side">' +
+      sideBlock("Legacy", i.legacy,
+        (i.bucket === "introduced" || i.bucket === "new-surface")
+          ? "Not present in the legacy codebase." : "No legacy counterpart recorded.") +
+      sideBlock("Modernized", i.modernized,
+        i.bucket === "resolved"
+          ? "No longer present in the modernized codebase." : "No modernized counterpart recorded.") +
+      '</div>');
+    if (i.match && (has(i.match.confidence) || has(i.match.basis))) {
+      s.push('<p class="count-note" style="margin-top:10px">' +
+        (has(i.match.confidence)
+          ? '<span class="match" data-c="' + esc(i.match.confidence) + '">Match: ' + esc(i.match.confidence) + '</span> '
+          : "") +
+        esc(i.match.basis || "") + '</p>');
+    }
+    s.push('</div>');
+
+    if (i.resolution && (has(i.resolution.reason) || has(i.resolution.detail))) {
+      var warn = i.resolution.reason === "feature-not-migrated";
+      s.push('<div class="fblock"><div class="h">Why it is gone</div>' +
+        (warn
+          ? '<div class="warnbox" style="margin-bottom:8px"><strong>Not a fix.</strong> ' +
+            'The flaw disappeared with code that was never migrated. It returns with the feature.</div>'
+          : "") +
+        '<p style="margin:0">' +
+        (has(i.resolution.reason) ? '<span class="tag">' + esc(i.resolution.reason) + '</span> ' : "") +
+        esc(i.resolution.detail || "") + '</p></div>');
+    }
+
+    if (has(i.risk)) {
+      s.push('<div class="fblock"><div class="h">Risk</div><p style="margin:0">' + esc(i.risk) + '</p></div>');
+    }
+
+    var r = i.remediation;
+    if (r) {
+      var badge = r.breakingChange
+        ? '<span class="badge-br">Breaking change</span>'
+        : (r.nonBreaking ? '<span class="badge-nb">Non-breaking</span>' : "");
+      s.push('<div class="fblock"><div class="h">Remediation' + (badge ? " " + badge : "") +
+        (has(r.effort) ? ' <span class="tag">Effort ' + esc(r.effort) + '</span>' : "") + '</div>');
+      if (r.breakingChange) {
+        s.push('<div class="warnbox" style="margin-bottom:10px"><strong>This fix changes behaviour.</strong> ' +
+               'Schedule it deliberately &mdash; it is not a drop-in change.</div>');
+      }
+      if (has(r.summary)) s.push('<p style="margin:0 0 10px">' + esc(r.summary) + '</p>');
+      if (arr(r.steps).length) {
+        s.push('<ol class="steps">' + arr(r.steps).map(function (x) {
+          return "<li>" + esc(x) + "</li>";
+        }).join("") + '</ol>');
+      }
+      if (has(r.codeBefore) || has(r.codeAfter)) {
+        s.push('<div class="diff" style="margin-top:12px">' +
+          (has(r.codeBefore)
+            ? '<div class="before"><div class="lbl">Before</div><pre class="code">' + esc(r.codeBefore) + '</pre></div>'
+            : "") +
+          (has(r.codeAfter)
+            ? '<div class="after"><div class="lbl">After</div><pre class="code">' + esc(r.codeAfter) + '</pre></div>'
+            : "") +
+          '</div>');
+      }
+      s.push('</div>');
+    }
+    if (has(i.verification)) {
+      s.push('<div class="fblock"><div class="h">Verification</div>' +
+             '<div class="verify">' + esc(i.verification) + '</div></div>');
+    }
+    var refs = arr(i.references);
+    if (refs.length) {
+      s.push('<div class="fblock"><div class="h">References</div><ul class="plain">' +
+        refs.map(function (x) {
+          return has(x.url)
+            ? '<li><a href="' + esc(x.url) + '" target="_blank" rel="noopener">' + esc(x.label || x.url) + '</a></li>'
+            : "<li>" + esc(x.label) + "</li>";
+        }).join("") + '</ul></div>');
+    }
+    s.push('</div></details>');
+    return s.join("");
+  }
+
+  out.push('<section id="items"><h2>Finding-by-finding comparison</h2>');
+  out.push(
+    '<div class="toolbar no-print">' +
+      '<span style="font-size:12px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em">Bucket</span>' +
+      BUCKETS.map(function (b) {
+        return '<button class="chip" type="button" data-bucket="' + b.key + '" aria-pressed="false">' +
+               esc(b.label) + '</button>';
+      }).join("") +
+      '<span style="font-size:12px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;margin-left:10px">Severity</span>' +
+      SEVS.map(function (s) {
+        return '<button class="chip" type="button" data-sev="' + s + '" aria-pressed="false">' + s + '</button>';
+      }).join("") +
+      '<button class="btn" id="expandAll" type="button">Expand all</button>' +
+    '</div>'
+  );
+  if (!items.length) {
+    out.push('<div class="empty">No comparable findings were produced.</div>');
+  }
+  items.forEach(function (i) { out.push(itemCard(i)); });
+  out.push('</section>');
+
+  /* ----------------------------------------------------------- 6. roadmap */
+  var roadmap = arr(DATA.roadmap);
+  if (roadmap.length) {
+    out.push('<section id="roadmap"><h2>Remediation roadmap for the modernized codebase</h2><div class="card">');
+    roadmap.forEach(function (p) {
+      out.push(
+        '<div class="phase">' +
+          '<div class="pnum">' + esc(p.phase) + '</div>' +
+          '<div><h3 style="font-size:15px;margin:0 0 4px">' + esc(p.name) + '</h3>' +
+            '<div style="font-size:12.5px;color:var(--text-muted)">' +
+              arr(p.findings).map(function (id) {
+                return '<a href="#' + esc(id) + '" class="tag">' + esc(id) + '</a>';
+              }).join("") +
+              (has(p.effort) ? ' <span class="tag">Effort ' + esc(p.effort) + '</span>' : "") +
+            '</div>' +
+            (has(p.rationale) ? '<p style="margin:8px 0 0;font-size:13.5px">' + esc(p.rationale) + '</p>' : "") +
+          '</div>' +
+          (has(p.scoreAfter) ? '<div class="pafter">&rarr; ' + esc(p.scoreAfter) + ' / 100</div>' : '<div></div>') +
+        '</div>'
+      );
+    });
+    out.push('</div></section>');
+  }
+
+  /* -------------------------------------------------------------- 7. cost */
+  var cost = DATA.cost;
+  if (cost) {
+    out.push('<section id="cost"><h2>Cost of this analysis</h2><div class="card">');
+    if (cost.source === "unavailable") {
+      out.push('<p class="empty">Cost was not collected for this run.</p>');
+    } else {
+      if (cost.source === "estimate") {
+        out.push('<div class="cost-caveat">These figures are an <strong>estimate</strong>. ' +
+          'Transcript-based measurement was unavailable for this run.</div>');
+      }
+      var phases = arr(cost.phases);
+      if (phases.length) {
+        out.push('<div class="table-scroll"><table class="phase-cost"><thead><tr>' +
+          '<th>Phase</th><th>Model</th><th class="num">Input</th><th class="num">Cache write</th>' +
+          '<th class="num">Cache read</th><th class="num">Output</th><th class="num">Total tokens</th>' +
+          '<th class="num">Cost</th></tr></thead><tbody>');
+        phases.forEach(function (p) {
+          var models = arr(p.byModel);
+          if (!models.length) {
+            out.push('<tr><td>' + esc(p.name) + '</td><td colspan="6" style="color:var(--text-muted)">' +
+              esc(p.note || "not collected") + '</td><td class="num">-</td></tr>');
+            return;
+          }
+          models.forEach(function (m, idx) {
+            var t = m.tokens || {}, c = m.costUSD || {};
+            out.push('<tr>' +
+              (idx === 0 ? '<td>' + esc(p.name) + '</td>' : '<td></td>') +
+              '<td><code>' + esc(m.model) + '</code>' +
+                (m.priced === false ? ' <span class="tag">unpriced</span>' : "") + '</td>' +
+              '<td class="num">' + num(t.input) + '</td>' +
+              '<td class="num">' + num((t.cacheWrite5m || 0) + (t.cacheWrite1h || 0)) + '</td>' +
+              '<td class="num">' + num(t.cacheRead) + '</td>' +
+              '<td class="num">' + num(t.output) + '</td>' +
+              '<td class="num">' + num(t.total) + '</td>' +
+              '<td class="num">' + money(c.total) + '</td>' +
+            '</tr>');
+          });
+          if (has(p.subtotalTokens) || has(p.subtotalCostUSD)) {
+            out.push('<tr><td></td><td style="color:var(--text-muted)">subtotal</td>' +
+              '<td class="num" colspan="4"></td>' +
+              '<td class="num">' + num(p.subtotalTokens) + '</td>' +
+              '<td class="num">' + money(p.subtotalCostUSD) + '</td></tr>');
+          }
+        });
+        var tot = cost.totals || {};
+        out.push('<tr class="total"><td>Total</td><td></td><td class="num" colspan="4"></td>' +
+          '<td class="num">' + num(tot.totalTokens) + '</td>' +
+          '<td class="num">' + money(tot.totalCostUSD) + '</td></tr>');
+        out.push('</tbody></table></div>');
+      }
+      var tt = cost.totals || {};
+      out.push('<div class="cost-total">' +
+        '<div><div style="font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted)">Total tokens</div>' +
+        '<div class="big">' + num(tt.totalTokens) + '</div></div>' +
+        '<div><div style="font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted)">Total cost</div>' +
+        '<div class="big">' + money(tt.totalCostUSD) + '</div></div>' +
+      '</div>');
+      if (has(cost.note)) out.push('<p class="count-note" style="margin-top:12px">' + esc(cost.note) + '</p>');
+    }
+    out.push('</div></section>');
+  }
+
+  /* ------------------------------------------------- 8. method + limits */
+  if (arr(DATA.methodology).length) {
+    out.push('<section id="method"><h2>How the comparison was made</h2><div class="card">' +
+      arr(DATA.methodology).map(function (p) { return "<p>" + esc(p) + "</p>"; }).join("") +
+      '</div></section>');
+  }
+  var lim = arr(DATA.limitations);
+  if (lim.length) {
+    out.push('<section id="limits"><h2>Limitations</h2><div class="card"><ul class="plain">' +
+      lim.map(function (l) { return "<li>" + esc(l) + "</li>"; }).join("") +
+      '</ul></div></section>');
+  }
+
+  out.push(
+    '<footer class="foot">' +
+      esc(meta.analyst || "Claude Code - security-audit-compare skill") +
+      ' &middot; generated ' + esc(meta.scanDate || "") +
+      ' &middot; static analysis of two source trees; no application was built or executed.' +
+    '</footer>'
+  );
+  out.push('</div>');
+
+  document.getElementById("root").innerHTML = out.join("");
+
+  /* ------------------------------------------------------------ behaviour */
+  var store = {
+    get: function (k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+    set: function (k, v) { try { localStorage.setItem(k, v); } catch (e) { /* file:// - fine */ } }
+  };
+
+  var saved = store.get("cmp-theme");
+  if (saved) document.documentElement.setAttribute("data-theme", saved);
+  var btn = document.getElementById("themeBtn");
+  if (btn) btn.addEventListener("click", function () {
+    var cur = document.documentElement.getAttribute("data-theme");
+    var next = cur === "dark" ? "light" : "dark";
+    document.documentElement.setAttribute("data-theme", next);
+    store.set("cmp-theme", next);
+  });
+
+  var cards = [].slice.call(document.querySelectorAll("details.finding"));
+  var chips = [].slice.call(document.querySelectorAll(".chip"));
+
+  function applyFilter() {
+    var onB = chips.filter(function (c) {
+      return c.hasAttribute("data-bucket") && c.getAttribute("aria-pressed") === "true";
+    }).map(function (c) { return c.getAttribute("data-bucket"); });
+    var onS = chips.filter(function (c) {
+      return c.hasAttribute("data-sev") && c.getAttribute("aria-pressed") === "true";
+    }).map(function (c) { return c.getAttribute("data-sev"); });
+    cards.forEach(function (card) {
+      var okB = !onB.length || onB.indexOf(card.getAttribute("data-bucket")) >= 0;
+      var okS = !onS.length || onS.indexOf(card.getAttribute("data-sev")) >= 0;
+      card.hidden = !(okB && okS);
+    });
+  }
+  chips.forEach(function (c) {
+    c.addEventListener("click", function () {
+      c.setAttribute("aria-pressed", c.getAttribute("aria-pressed") === "true" ? "false" : "true");
+      applyFilter();
+    });
+  });
+
+  var exp = document.getElementById("expandAll");
+  if (exp) exp.addEventListener("click", function () {
+    var anyClosed = cards.some(function (c) { return !c.open && !c.hidden; });
+    cards.forEach(function (c) { if (!c.hidden) c.open = anyClosed; });
+    exp.textContent = anyClosed ? "Collapse all" : "Expand all";
+  });
+
+  function openHash() {
+    if (!location.hash) return;
+    var t = document.getElementById(location.hash.slice(1));
+    if (t && t.tagName === "DETAILS") { t.hidden = false; t.open = true; t.scrollIntoView({ block: "start" }); }
+  }
+  window.addEventListener("hashchange", openHash);
+  openHash();
+})();
+</script>
+</body>
+</html>

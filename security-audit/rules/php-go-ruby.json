@@ -1,0 +1,143 @@
+{
+  "pack": "php-go-ruby",
+  "appliesTo": ["php", "laravel", "go", "golang", "ruby", "rails"],
+  "rules": [
+    {
+      "id": "PHP-INJ-01",
+      "title": "SQL built from a request superglobal",
+      "pattern": "(mysqli_query|mysql_query|->query\\s*\\(|->exec\\s*\\()[^\\n]{0,160}(\\$_(GET|POST|REQUEST|COOKIE)|\\.\\s*\\$)",
+      "glob": "**/*.php",
+      "severity": "Critical",
+      "owasp": "A03:2021",
+      "cwe": ["CWE-89"],
+      "attack": ["T1190"],
+      "why": "Concatenating a superglobal into SQL is direct injection with no mitigating layer.",
+      "falsePositiveHints": "PDO prepare() + bindParam/execute(array) is safe. Eloquent/query-builder methods parameterize; DB::raw() does not."
+    },
+    {
+      "id": "PHP-XSS-01",
+      "title": "Request value echoed without escaping",
+      "pattern": "(echo|print|printf|<\\?=)[^\\n;]{0,80}\\$_(GET|POST|REQUEST|COOKIE|SERVER)|\\{!!\\s*\\$",
+      "glob": "**/*.{php,blade.php}",
+      "severity": "High",
+      "owasp": "A03:2021",
+      "cwe": ["CWE-79"],
+      "why": "Echoing request data unescaped is reflected XSS. Blade's {!! !!} disables escaping that {{ }} would apply.",
+      "falsePositiveHints": "htmlspecialchars/htmlentities/e() wrapping closes it. Blade {{ }} is escaped and safe."
+    },
+    {
+      "id": "PHP-INC-01",
+      "title": "File include or require built from input",
+      "pattern": "(include|include_once|require|require_once)\\s*\\(?\\s*[^;\\n]{0,60}\\$_(GET|POST|REQUEST|COOKIE)",
+      "glob": "**/*.php",
+      "severity": "Critical",
+      "owasp": "A03:2021",
+      "cwe": ["CWE-98"],
+      "attack": ["T1505.003"],
+      "why": "Local/remote file inclusion leads to source disclosure and, with an uploadable path or a wrapper, remote code execution.",
+      "falsePositiveHints": "Closed only by an allow-list of permitted filenames. Basename() alone is not sufficient."
+    },
+    {
+      "id": "PHP-CFG-01",
+      "title": "Dangerous PHP runtime setting",
+      "pattern": "(?i)(display_errors\\s*[,=]\\s*[\"']?(1|on|true)|allow_url_include\\s*[,=]\\s*[\"']?(1|on)|expose_php\\s*=\\s*On|error_reporting\\s*\\(\\s*E_ALL\\s*\\)[^\\n]*display)",
+      "glob": "**/*.{php,ini}",
+      "severity": "Medium",
+      "owasp": "A05:2021",
+      "cwe": ["CWE-209"],
+      "why": "display_errors leaks paths, queries and configuration to visitors; allow_url_include turns an LFI into RFI.",
+      "falsePositiveHints": "Acceptable in a development-only ini. Confirm which file the deployment loads."
+    },
+    {
+      "id": "GO-INJ-01",
+      "title": "Go SQL query built with Sprintf or concatenation",
+      "pattern": "(db|tx|conn)\\.(Query|QueryRow|Exec|QueryContext|ExecContext)\\s*\\(\\s*[^,)\\n]{0,40}(fmt\\.Sprintf|\\+\\s*[a-zA-Z_])",
+      "glob": "**/*.go",
+      "severity": "Critical",
+      "owasp": "A03:2021",
+      "cwe": ["CWE-89"],
+      "why": "database/sql supports placeholders; Sprintf into the query defeats them entirely.",
+      "falsePositiveHints": "Query(\"... WHERE id = $1\", id) is the safe form. Sprintf used only to assemble a static query from constants is Info."
+    },
+    {
+      "id": "GO-XSS-01",
+      "title": "Go template escaping bypassed",
+      "pattern": "template\\.HTML\\(|template\\.JS\\(|template\\.URL\\(|template\\.HTMLAttr\\(|text/template",
+      "glob": "**/*.go",
+      "severity": "High",
+      "owasp": "A03:2021",
+      "cwe": ["CWE-79"],
+      "why": "These types tell html/template the content is already safe. text/template performs no contextual escaping at all when rendering HTML.",
+      "falsePositiveHints": "text/template for non-HTML output (config files, emails, CLI text) is correct and not a finding."
+    },
+    {
+      "id": "GO-TLS-01",
+      "title": "Go TLS verification disabled",
+      "pattern": "InsecureSkipVerify\\s*:\\s*true|MinVersion\\s*:\\s*tls\\.VersionTLS10|MinVersion\\s*:\\s*tls\\.VersionSSL30",
+      "glob": "**/*.go",
+      "severity": "High",
+      "owasp": "A02:2021",
+      "cwe": ["CWE-295"],
+      "attack": ["T1557"],
+      "why": "InsecureSkipVerify accepts any certificate, reducing TLS to unauthenticated encryption.",
+      "falsePositiveHints": "Test files are lower severity, but confirm the flag cannot be reached from a production code path."
+    },
+    {
+      "id": "RB-INJ-01",
+      "title": "Rails query built by interpolation",
+      "pattern": "(where|find_by_sql|execute|order|group|having|pluck)\\s*\\(\\s*[\"'][^\"']*#\\{|\\.where\\s*\\(\\s*[\"'][^\"']*[\"']\\s*\\+",
+      "glob": "**/*.rb",
+      "severity": "Critical",
+      "owasp": "A03:2021",
+      "cwe": ["CWE-89"],
+      "why": "ActiveRecord parameterizes hash and array conditions; #{} interpolation inside a SQL string does not.",
+      "falsePositiveHints": "where(\"id = ?\", id) and where(id: id) are safe. Interpolating a column name from an allow-list is lower severity."
+    },
+    {
+      "id": "RB-INJ-02",
+      "title": "Ruby command execution or dynamic evaluation",
+      "pattern": "`[^`\\n]*#\\{|system\\s*\\(|%x\\{|Open3\\.|eval\\s*\\(|instance_eval|class_eval|send\\s*\\(\\s*params",
+      "glob": "**/*.rb",
+      "severity": "High",
+      "owasp": "A03:2021",
+      "cwe": ["CWE-78", "CWE-94"],
+      "why": "Backticks and system() invoke a shell; send(params[...]) lets a caller invoke arbitrary methods on the object.",
+      "falsePositiveHints": "system with an argument array avoids the shell. Literal commands are Info."
+    },
+    {
+      "id": "RB-XSS-01",
+      "title": "Rails output escaping bypassed",
+      "pattern": "\\.html_safe|raw\\s*\\(|<%==|sanitize\\s*\\(\\s*[^)]*tags:\\s*nil",
+      "glob": "**/*.{rb,erb,haml}",
+      "severity": "High",
+      "owasp": "A03:2021",
+      "cwe": ["CWE-79"],
+      "why": "html_safe and raw disable ERB's automatic escaping for that value.",
+      "falsePositiveHints": "html_safe over a developer-authored literal is fine. Over anything derived from params or the database it is a finding."
+    },
+    {
+      "id": "RB-AUTHZ-01",
+      "title": "No authentication or authorization filter detected",
+      "pattern": "before_action\\s*:authenticate|authenticate_user!|devise|authorize\\s|Pundit|CanCan|current_user",
+      "glob": "**/*.rb",
+      "expect": "present-required",
+      "precondition": "Rails/Sinatra application with controllers.",
+      "severity": "Critical",
+      "owasp": "A01:2021",
+      "cwe": ["CWE-306"],
+      "why": "No authentication filters means every controller action is anonymous.",
+      "falsePositiveHints": "Rack middleware or an upstream gateway may enforce it. Verify."
+    },
+    {
+      "id": "MULTI-DEP-01",
+      "title": "Declared dependencies to inventory for advisory checking",
+      "pattern": "\"require\"\\s*:|^\\s*gem\\s+[\"']|^require\\s+\\(|^\\s*[a-zA-Z0-9./_-]+\\s+v[0-9]",
+      "glob": "**/{composer.json,Gemfile,go.mod}",
+      "severity": "Info",
+      "owasp": "A06:2021",
+      "cwe": ["CWE-1104"],
+      "why": "Collects the dependency inventory for the Step 4 advisory check.",
+      "falsePositiveHints": "Not a finding on its own."
+    }
+  ]
+}

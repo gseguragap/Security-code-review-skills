@@ -1,0 +1,48 @@
+{
+  "comparisonDepth": "full",
+  "legacyFindings": 16,
+  "modernizedFindings": 17,
+  "itemsProduced": 26,
+  "coverage": {
+    "legacyAccountedFor": ["L-1","L-2","L-3","L-4","L-5","L-6","L-7","L-8","L-9","L-10","L-11","L-12","L-13","L-14","L-15","L-16"],
+    "modernizedAccountedFor": ["M-1","M-2","M-3","M-4","M-5","M-6","M-7","M-8","M-9","M-10","M-11","M-12","M-13","M-14","M-15","M-16","M-17"],
+    "unaccountedFor": []
+  },
+  "pairs": [
+    { "item": "C-1",  "bucket": "introduced",  "legacy": null,   "modernized": "M-5",  "match": null },
+    { "item": "C-2",  "bucket": "new-surface", "legacy": null,   "modernized": "M-1",  "match": null },
+    { "item": "C-3",  "bucket": "inherited",   "legacy": "L-6",  "modernized": "M-2",  "match": "Certain" },
+    { "item": "C-4",  "bucket": "inherited",   "legacy": "L-4",  "modernized": "M-3",  "match": "Probable" },
+    { "item": "C-5",  "bucket": "new-surface", "legacy": null,   "modernized": "M-4",  "match": null },
+    { "item": "C-6",  "bucket": "inherited",   "legacy": "L-9",  "modernized": "M-6",  "match": "Certain" },
+    { "item": "C-7",  "bucket": "inherited",   "legacy": "L-12", "modernized": "M-12", "match": "Certain" },
+    { "item": "C-8",  "bucket": "inherited",   "legacy": "L-13", "modernized": "M-8",  "match": "Certain" },
+    { "item": "C-9",  "bucket": "inherited",   "legacy": "L-11", "modernized": "M-17", "match": "Certain" },
+    { "item": "C-10", "bucket": "inherited",   "legacy": "L-7",  "modernized": "M-13", "match": "Probable" },
+    { "item": "C-11", "bucket": "inherited",   "legacy": "L-16", "modernized": null,   "match": "Certain", "note": "Modernized side is the same seven .unl files under SeedData/; no separate modernized finding id was raised because the Info-severity judgement is identical." },
+    { "item": "C-12", "bucket": "new-surface", "legacy": null,   "modernized": "M-10", "match": null },
+    { "item": "C-13", "bucket": "new-surface", "legacy": null,   "modernized": "M-11", "match": null },
+    { "item": "C-14", "bucket": "new-surface", "legacy": null,   "modernized": "M-9",  "match": null },
+    { "item": "C-15", "bucket": "new-surface", "legacy": null,   "modernized": "M-7",  "match": null },
+    { "item": "C-16", "bucket": "new-surface", "legacy": null,   "modernized": "M-14", "match": null },
+    { "item": "C-17", "bucket": "new-surface", "legacy": null,   "modernized": "M-15", "match": null },
+    { "item": "C-18", "bucket": "new-surface", "legacy": null,   "modernized": "M-16", "match": null },
+    { "item": "C-19", "bucket": "resolved",    "legacy": "L-1",  "modernized": null,   "reason": "explicitly-remediated" },
+    { "item": "C-20", "bucket": "resolved",    "legacy": "L-2",  "modernized": null,   "reason": "explicitly-remediated" },
+    { "item": "C-21", "bucket": "resolved",    "legacy": "L-5",  "modernized": null,   "reason": "fixed-by-construction" },
+    { "item": "C-22", "bucket": "resolved",    "legacy": "L-3",  "modernized": null,   "reason": "feature-not-migrated" },
+    { "item": "C-23", "bucket": "resolved",    "legacy": "L-8",  "modernized": null,   "reason": "fixed-by-construction" },
+    { "item": "C-24", "bucket": "resolved",    "legacy": "L-14", "modernized": null,   "reason": "fixed-by-construction" },
+    { "item": "C-25", "bucket": "resolved",    "legacy": "L-15", "modernized": null,   "reason": "fixed-by-construction" },
+    { "item": "C-26", "bucket": "resolved",    "legacy": "L-10", "modernized": null,   "reason": "not-applicable" }
+  ],
+  "rejectedPairings": [
+    { "candidate": "L-10 (cleartext DB connection, CWE-319) <-> M-4 (plaintext HTTP, CWE-319)",
+      "reason": "Same CWE but different functional areas - the legacy defect is in the database connection, the modernized one in the web transport layer, which is modern-only. Matching-protocol §2 requires both criteria. Left unpaired: L-10 resolved as not-applicable, M-4 filed as new-surface." },
+    { "candidate": "L-15 (unchecked SQL error conditions, CWE-391) <-> M-16 (raw exception messages in UI, CWE-209)",
+      "reason": "Opposite defects on adjacent ground - the legacy suppressed errors, the modernized over-discloses them. Different weakness classes, so not a match under §2." },
+    { "candidate": "L-3 (self-asserted privilege, CWE-602) <-> M-1 (no authorization, CWE-862)",
+      "reason": "The legacy privilege model has no counterpart at all, so there is nothing to pair with. L-3 is resolved/feature-not-migrated and raises a coverage risk; M-1 is filed as new-surface because the legacy audit did not find this ground clean, which §4 requires before 'introduced' may be used." }
+  ],
+  "bucketCounts": { "inherited": 8, "introduced": 1, "new-surface": 9, "resolved": 8, "not-comparable": 0 }
+}
