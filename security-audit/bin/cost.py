@@ -149,15 +149,58 @@ def scan(path: Path, skip: int, msgs: dict) -> int:
     return n
 
 
-def load_pricing(path: Path) -> tuple[dict, str]:
+def load_pricing(path: Path) -> tuple[dict, dict, str]:
     if not path.is_file():
-        return {}, "unknown"
+        return {}, {}, "unknown"
     try:
         doc = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError) as exc:
         print(f"cost.py: pricing file unreadable ({exc}); costs will be null", file=sys.stderr)
-        return {}, "unknown"
-    return doc.get("models", {}) or {}, doc.get("pricingVersion", "unknown")
+        return {}, {}, "unknown"
+    return (doc.get("models", {}) or {}, doc.get("familyDefaults", {}) or {},
+            doc.get("pricingVersion", "unknown"))
+
+
+# Client-side placeholder turns. They carry no billed usage and are not a model.
+IGNORED_MODELS = ("<synthetic>",)
+
+RE_BEDROCK_PREFIX = re.compile(r"^((us|eu|apac|global|jp|au)\.)?(anthropic\.)?")
+RE_BEDROCK_SUFFIX = re.compile(r"-v[0-9]+(:[0-9]+)?$")
+RE_DATE_SUFFIX = re.compile(r"-[0-9]{8}$")
+
+
+def normalize_model(model: str) -> str:
+    """Reduce a provider- or context-decorated id to its bare first-party form.
+
+    claude-opus-5-5[1m] -> claude-opus-5-5; us.anthropic.claude-haiku-4-5-20251001-v1:0 ->
+    claude-haiku-4-5; claude-opus-4-5@20251101 -> claude-opus-4-5. The awk and PowerShell
+    collectors apply the same steps in the same order - keep all three in step.
+    """
+    s = model.lower()
+    s = s.split("[", 1)[0]
+    s = s.split("@", 1)[0]
+    s = RE_BEDROCK_PREFIX.sub("", s, count=1)
+    s = RE_BEDROCK_SUFFIX.sub("", s)
+    s = RE_DATE_SUFFIX.sub("", s)
+    return s
+
+
+def resolve_rate(model: str, rates: dict, families: dict) -> tuple[str | None, str]:
+    """Return (pricing key, match kind) for a model id. Kind is exact/normalized/family/none.
+
+    A family match prices an id the table does not list at its family's current model, so a
+    newly released model still gets a figure - labelled as estimated, never silently exact.
+    """
+    if model in rates:
+        return model, "exact"
+    n = normalize_model(model)
+    if n in rates:
+        return n, "normalized"
+    for fam in sorted(families):
+        key = families[fam]
+        if key in rates and re.search(rf"(^|-){re.escape(fam)}(-|$)", n):
+            return key, "family"
+    return None, "none"
 
 
 def main() -> int:
@@ -264,6 +307,8 @@ def main() -> int:
 
     agg: dict = {}
     for rec in msgs.values():
+        if rec["model"] in IGNORED_MODELS:
+            continue
         w5, w1 = rec["w5"], rec["w1"]
         # No per-TTL breakdown (older transcript): attribute to the 5-minute rate, the cheaper
         # of the two. This understates rather than overstates - the honest way to err.
@@ -278,9 +323,9 @@ def main() -> int:
         a["output"] += rec["output"]
 
     pricing_path = Path(args.pricing) if args.pricing else Path(__file__).resolve().parent.parent / "assets" / "pricing.json"
-    rates, pricing_version = load_pricing(pricing_path)
+    rates, families, pricing_version = load_pricing(pricing_path)
 
-    by_model, grand_tokens, grand_cost, unpriced = [], 0, 0.0, 0
+    by_model, grand_tokens, grand_cost, unpriced, priced, family_rated = [], 0, 0.0, 0, 0, 0
     for model in sorted(agg):
         a = agg[model]
         total_tokens = a["input"] + a["w5"] + a["w1"] + a["read"] + a["output"]
@@ -289,12 +334,17 @@ def main() -> int:
             "input": a["input"], "cacheWrite5m": a["w5"], "cacheWrite1h": a["w1"],
             "cacheRead": a["read"], "output": a["output"], "total": total_tokens,
         }
-        r = rates.get(model)
+        key, match = resolve_rate(model, rates, families)
+        r = rates.get(key) if key else None
         if not r:
             unpriced += 1
-            by_model.append({"model": model, "priced": False, "messages": a["messages"],
-                             "tokens": tokens, "rates": None, "costUSD": None})
+            by_model.append({"model": model, "priced": False, "ratedAs": None, "rateMatch": "none",
+                             "messages": a["messages"], "tokens": tokens, "rates": None,
+                             "costUSD": None})
             continue
+        priced += 1
+        if match == "family":
+            family_rated += 1
         c = {
             "input": a["input"] * float(r["input"]) / 1_000_000,
             "cacheWrite5m": a["w5"] * float(r["cacheWrite5m"]) / 1_000_000,
@@ -305,7 +355,8 @@ def main() -> int:
         c["total"] = sum(c.values())
         grand_cost += c["total"]
         by_model.append({
-            "model": model, "priced": True, "messages": a["messages"], "tokens": tokens,
+            "model": model, "priced": True, "ratedAs": key, "rateMatch": match,
+            "messages": a["messages"], "tokens": tokens,
             "rates": {k: round(float(r[k]), 2) for k in
                       ("input", "cacheWrite5m", "cacheWrite1h", "cacheRead", "output")},
             "costUSD": {k: round(v, 6) for k, v in c.items()},
@@ -318,8 +369,11 @@ def main() -> int:
         "transcript": str(t),
         "fromLine": skip,
         "byModel": by_model,
-        "totals": {"totalTokens": grand_tokens, "totalCostUSD": round(grand_cost, 4)},
+        # No priced model means no dollar figure at all - not $0.00, which reads as "free".
+        "totals": {"totalTokens": grand_tokens,
+                   "totalCostUSD": round(grand_cost, 4) if priced else None},
         "unpricedModels": unpriced,
+        "familyRatedModels": family_rated,
         "pricingVersion": pricing_version,
         "note": ("Measured from the session transcript. Assistant messages are deduplicated by "
                  "message id. Dollar figures use the list rates in assets/pricing.json and exclude "

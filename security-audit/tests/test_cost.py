@@ -14,6 +14,9 @@ Also pinned here:
   * the collectors (python / bash+awk / PowerShell) agree on the same transcript
   * the merge helpers produce byte-identical findings documents
   * merge refuses, without touching the file, when the placeholder is absent
+  * any Claude model id gets a rate - decorated ids ([1m], Bedrock, dated) normalize to their
+    table row, an unlisted model falls back to its family's rate - and a run with nothing
+    priceable reports a null dollar total, never $0.00
 
 Standard library only. Collectors absent from this machine are skipped, never failed.
 
@@ -42,13 +45,14 @@ FAILED: list = []
 SKIPPED: list = []
 
 
-def msg(i: int, inp: int = 100, out: int = 1000, read: int = 10000) -> str:
+def msg(i: int, inp: int = 100, out: int = 1000, read: int = 10000,
+        model: str = "claude-opus-5") -> str:
     """One assistant record, in the compact shape the collectors match on."""
     return json.dumps({
         "type": "assistant",
         "message": {
             "id": f"msg_{i}",
-            "model": "claude-opus-5",
+            "model": model,
             "usage": {"input_tokens": inp, "output_tokens": out,
                       "cache_read_input_tokens": read},
         },
@@ -191,6 +195,62 @@ def test_dedup(impls: dict, tmp: Path, verbose: bool) -> None:
               f"messages={by.get('messages')} tokens={total_tokens(doc)}", verbose)
 
 
+def test_model_resolution(impls: dict, tmp: Path, verbose: bool) -> None:
+    """Every Claude model id is priced; only a non-Claude id stays unpriced; never $0.00."""
+    pricing = json.loads((BIN.parent / "assets" / "pricing.json").read_text(encoding="utf-8"))
+    rates = pricing["models"]
+
+    def cost_of(key: str) -> float:
+        r = rates[key]
+        return 100 * r["input"] / 1e6 + 10000 * r["cacheRead"] / 1e6 + 1000 * r["output"] / 1e6
+
+    fam_opus = pricing["familyDefaults"]["opus"]
+    # model id in transcript -> (expected ratedAs, expected rateMatch)
+    cases = {
+        "claude-opus-5-5": ("claude-opus-5-5", "exact"),
+        "claude-opus-5-5[1m]": ("claude-opus-5-5", "normalized"),
+        "us.anthropic.claude-haiku-4-5-20251001-v1:0": ("claude-haiku-4-5", "normalized"),
+        "claude-opus-4-5@20251101": ("claude-opus-4-5", "normalized"),
+        "claude-opus-9": (fam_opus, "family"),
+        "gpt-unrelated": (None, "none"),
+    }
+    lines = [msg(i, model=m) for i, m in enumerate(cases, start=1)]
+    lines.append(msg(99, inp=0, out=0, read=0, model="<synthetic>"))
+    mixed = tmp / "models.jsonl"
+    mixed.write_text(NL.join(lines) + NL, encoding="utf-8")
+    want_cost = round(sum(cost_of(k) for k, _ in cases.values() if k), 4)
+
+    none = tmp / "unpriceable.jsonl"
+    none.write_text(msg(1, model="gpt-unrelated") + NL, encoding="utf-8")
+
+    for name, build in sorted(impls.items()):
+        d = tmp / f"models_{name}"
+        doc = run_report(build(d), d, f"{mixed}{TAB}0{TAB}2026-01-01T00:00:00Z")
+        by = {m.get("model"): m for m in doc.get("byModel") or []}
+        for model, (key, match) in cases.items():
+            row = by.get(model) or {}
+            check(f"[{name}] {model} -> {match}{' as ' + key if key else ''}",
+                  row.get("ratedAs") == key and row.get("rateMatch") == match
+                  and row.get("priced") == (key is not None),
+                  f"got ratedAs={row.get('ratedAs')!r} rateMatch={row.get('rateMatch')!r}", verbose)
+        check(f"[{name}] <synthetic> is not reported as a model", "<synthetic>" not in by,
+              f"models={sorted(by)}", verbose)
+        c = total_cost(doc)
+        check(f"[{name}] mixed-model dollar total is exact",
+              c is not None and abs(c - want_cost) < 1e-4, f"want {want_cost}, got {c}", verbose)
+        check(f"[{name}] counts the family-rated and unpriced models",
+              doc.get("familyRatedModels") == 1 and doc.get("unpricedModels") == 1,
+              f"family={doc.get('familyRatedModels')} unpriced={doc.get('unpricedModels')}", verbose)
+
+        d = tmp / f"unpriceable_{name}"
+        doc = run_report(build(d), d, f"{none}{TAB}0{TAB}2026-01-01T00:00:00Z")
+        check(f"[{name}] nothing priceable -> null total, not $0.00",
+              doc.get("source") == "transcript" and total_cost(doc) is None
+              and total_tokens(doc) == 11100,
+              f"source={doc.get('source')!r} cost={total_cost(doc)!r} tokens={total_tokens(doc)}",
+              verbose)
+
+
 def test_merge(tmp: Path, verbose: bool) -> None:
     """Merge helpers agree byte for byte, and refuse a document with no placeholder."""
     cost_file = tmp / "m_cost.json"
@@ -264,6 +324,7 @@ def main() -> int:
         test_honesty_guards(impls, tmp, transcript, args.verbose)
         test_measured_path(impls, tmp, transcript, args.verbose)
         test_dedup(impls, tmp, args.verbose)
+        test_model_resolution(impls, tmp, args.verbose)
         test_merge(tmp, args.verbose)
 
     print()

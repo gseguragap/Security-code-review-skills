@@ -1,5 +1,5 @@
 {
-  "pricingVersion": "2026-06-24",
+  "pricingVersion": "2026-09-29",
   "currency": "USD",
   "unit": "per 1,000,000 tokens",
   "source": "Anthropic first-party API list pricing.",
@@ -11,20 +11,56 @@
     "  - Batch API requests are 50% of these rates.",
     "Cache write rates follow the standard multipliers (5-minute TTL = 1.25x input, 1-hour TTL = 2x",
     "input) and cache reads are 0.1x input, except where a model publishes a different read rate.",
-    "To update: edit the rows below. Each model MUST stay on a single line - bin/collect-cost.sh",
-    "parses this file line by line, without a JSON library."
+    "",
+    "HOW A MODEL ID IS PRICED - the three collectors (cost.py, collect-cost.sh, collect-cost.ps1)",
+    "resolve every model id the same way, so a model missing from this table still gets a cost:",
+    "  1. exact      - the id is a key in 'models'.",
+    "  2. normalized - the id, lowercased, with any '[1m]'-style suffix, '@version', Bedrock",
+    "                  region/'anthropic.' prefix, '-v1:0' suffix and '-YYYYMMDD' date removed,",
+    "                  is a key in 'models'. e.g. us.anthropic.claude-haiku-4-5-20251001-v1:0.",
+    "  3. family     - the normalized id contains a family word (fable, mythos, opus, sonnet,",
+    "                  haiku) as a dash-separated token; it is priced at the model named for that",
+    "                  family in 'familyDefaults', and the report labels the rate as estimated.",
+    "  '<synthetic>' (client-side placeholder turns, never billed) is dropped before pricing.",
+    "  Only an id matching none of these stays unpriced, and a run with no priced model reports",
+    "  its dollar total as null (shown as unavailable), never as $0.00.",
+    "When a new model ships: add its row, and point its family's default at it if it is the newest.",
+    "",
+    "FORMAT: each model and each familyDefaults entry MUST stay on a single line -",
+    "bin/collect-cost.sh parses this file line by line, without a JSON library."
   ],
   "models": {
     "claude-fable-5-1":   { "input": 10.00, "output": 50.00, "cacheWrite5m": 12.50, "cacheWrite1h": 20.00, "cacheRead": 0.25 },
     "claude-mythos-5-1":  { "input": 10.00, "output": 50.00, "cacheWrite5m": 12.50, "cacheWrite1h": 20.00, "cacheRead": 0.25 },
     "claude-fable-5":     { "input": 10.00, "output": 50.00, "cacheWrite5m": 12.50, "cacheWrite1h": 20.00, "cacheRead": 1.00 },
+    "claude-mythos-5":    { "input": 10.00, "output": 50.00, "cacheWrite5m": 12.50, "cacheWrite1h": 20.00, "cacheRead": 1.00 },
+    "claude-opus-5-5":    { "input": 4.00,  "output": 20.00, "cacheWrite5m": 5.00,  "cacheWrite1h": 8.00,  "cacheRead": 0.20 },
     "claude-opus-5":      { "input": 5.00,  "output": 25.00, "cacheWrite5m": 6.25,  "cacheWrite1h": 10.00, "cacheRead": 0.50 },
     "claude-opus-4-8":    { "input": 5.00,  "output": 25.00, "cacheWrite5m": 6.25,  "cacheWrite1h": 10.00, "cacheRead": 0.50 },
     "claude-opus-4-7":    { "input": 5.00,  "output": 25.00, "cacheWrite5m": 6.25,  "cacheWrite1h": 10.00, "cacheRead": 0.50 },
     "claude-opus-4-6":    { "input": 5.00,  "output": 25.00, "cacheWrite5m": 6.25,  "cacheWrite1h": 10.00, "cacheRead": 0.50 },
+    "claude-opus-4-5":    { "input": 5.00,  "output": 25.00, "cacheWrite5m": 6.25,  "cacheWrite1h": 10.00, "cacheRead": 0.50 },
+    "claude-opus-4-1":    { "input": 15.00, "output": 75.00, "cacheWrite5m": 18.75, "cacheWrite1h": 30.00, "cacheRead": 1.50 },
+    "claude-opus-4-0":    { "input": 15.00, "output": 75.00, "cacheWrite5m": 18.75, "cacheWrite1h": 30.00, "cacheRead": 1.50 },
+    "claude-opus-4":      { "input": 15.00, "output": 75.00, "cacheWrite5m": 18.75, "cacheWrite1h": 30.00, "cacheRead": 1.50 },
+    "claude-3-opus":      { "input": 15.00, "output": 75.00, "cacheWrite5m": 18.75, "cacheWrite1h": 30.00, "cacheRead": 1.50 },
     "claude-sonnet-5":    { "input": 2.00,  "output": 10.00, "cacheWrite5m": 2.50,  "cacheWrite1h": 4.00,  "cacheRead": 0.20 },
     "claude-sonnet-4-6":  { "input": 3.00,  "output": 15.00, "cacheWrite5m": 3.75,  "cacheWrite1h": 6.00,  "cacheRead": 0.30 },
-    "claude-haiku-4-5":   { "input": 1.00,  "output": 5.00,  "cacheWrite5m": 1.25,  "cacheWrite1h": 2.00,  "cacheRead": 0.10 }
+    "claude-sonnet-4-5":  { "input": 3.00,  "output": 15.00, "cacheWrite5m": 3.75,  "cacheWrite1h": 6.00,  "cacheRead": 0.30 },
+    "claude-sonnet-4-0":  { "input": 3.00,  "output": 15.00, "cacheWrite5m": 3.75,  "cacheWrite1h": 6.00,  "cacheRead": 0.30 },
+    "claude-sonnet-4":    { "input": 3.00,  "output": 15.00, "cacheWrite5m": 3.75,  "cacheWrite1h": 6.00,  "cacheRead": 0.30 },
+    "claude-3-7-sonnet":  { "input": 3.00,  "output": 15.00, "cacheWrite5m": 3.75,  "cacheWrite1h": 6.00,  "cacheRead": 0.30 },
+    "claude-3-5-sonnet":  { "input": 3.00,  "output": 15.00, "cacheWrite5m": 3.75,  "cacheWrite1h": 6.00,  "cacheRead": 0.30 },
+    "claude-haiku-4-5":   { "input": 1.00,  "output": 5.00,  "cacheWrite5m": 1.25,  "cacheWrite1h": 2.00,  "cacheRead": 0.10 },
+    "claude-3-5-haiku":   { "input": 0.80,  "output": 4.00,  "cacheWrite5m": 1.00,  "cacheWrite1h": 1.60,  "cacheRead": 0.08 },
+    "claude-3-haiku":     { "input": 0.25,  "output": 1.25,  "cacheWrite5m": 0.30,  "cacheWrite1h": 0.50,  "cacheRead": 0.03 }
   },
-  "unknownModelPolicy": "If a model id is not listed, report its token counts but leave its cost null and add a note to the report. Do NOT guess a rate - an invented cost figure is worse than an absent one."
+  "familyDefaults": {
+    "fable":  "claude-fable-5-1",
+    "mythos": "claude-mythos-5-1",
+    "opus":   "claude-opus-5-5",
+    "sonnet": "claude-sonnet-5",
+    "haiku":  "claude-haiku-4-5"
+  },
+  "unknownModelPolicy": "An id that resolves by neither exact, normalized nor family match keeps its token counts with a null cost, and is counted in unpricedModels. If no model in the run is priced, totalCostUSD is null - an invented or zero cost figure is worse than an absent one."
 }
