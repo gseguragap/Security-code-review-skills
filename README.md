@@ -115,12 +115,30 @@ security-code-review ──┬─► security-audit          (×1 or ×2)
 Keep them as siblings — `security-audit-compare` reads `security-audit`'s cost collectors and pricing
 table by relative path, so there is one pricing table rather than two that drift apart.
 
+### Golden rule: the order of operations
+
+Every run, whether started from the UI, the CLI or VS Code, goes in this order and no other:
+
+1. The user supplies the project name and source paths.
+2. Report creation is triggered.
+3. The **legacy** code is audited and the Legacy report is written.
+4. **Then** the modernized code is audited and the Modernized report is written.
+5. **Only then** does the comparison start, reading the two completed audits.
+
+This is enforced in three places:
+
+- **`security-code-review`** states the rule and forbids running phases early or concurrently.
+- **`security-audit-compare`** opens with `bin/phase-gate.sh` / `.ps1`. The gate refuses to start
+  unless both audits and their reports are complete on disk, in that order.
+- **The local UI** watches the output folder and stops any run that breaks the order.
+
 ---
 
 ## Design commitments
 
 These are properties to preserve, not incidental behaviour:
 
+- **Legacy, then Modernized, then Comparison. Always.** See the golden rule above.
 - **Human-triggered only.** No scheduling, no watch mode. Each run costs real money.
 - **Validate, confirm, then spend.** A mistyped path is caught while it is still free.
 - **Read-only.** The system audits and reports; it never edits either codebase.
