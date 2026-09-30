@@ -510,7 +510,8 @@
             out.push('<tr>' +
               (idx === 0 ? '<td>' + esc(p.name) + '</td>' : '<td></td>') +
               '<td><code>' + esc(m.model) + '</code>' +
-                (m.priced === false ? ' <span class="tag">unpriced</span>' : "") + '</td>' +
+                (m.priced === false ? ' <span class="tag">unpriced</span>' : "") +
+                (m.rateMatch === "family" ? ' <span class="tag" title="No exact rate for this model id; priced at the current rate of its model family">est. rate: ' + esc(m.ratedAs) + '</span>' : "") + '</td>' +
               '<td class="num">' + num(t.input) + '</td>' +
               '<td class="num">' + num((t.cacheWrite5m || 0) + (t.cacheWrite1h || 0)) + '</td>' +
               '<td class="num">' + num(t.cacheRead) + '</td>' +
@@ -537,7 +538,7 @@
         '<div><div style="font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted)">Total tokens</div>' +
         '<div class="big">' + num(tt.totalTokens) + '</div></div>' +
         '<div><div style="font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted)">Total cost</div>' +
-        '<div class="big">' + money(tt.totalCostUSD) + '</div></div>' +
+        '<div class="big">' + (has(tt.totalCostUSD) ? money(tt.totalCostUSD) : "Not available") + '</div></div>' +
       '</div>');
       if (has(cost.note)) out.push('<p class="count-note" style="margin-top:12px">' + esc(cost.note) + '</p>');
     }

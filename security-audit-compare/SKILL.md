@@ -47,6 +47,31 @@ standalone only when both audits already exist on disk.
 
 ---
 
+## Phase gate — run this first, every time
+
+This skill is the **last** step of the modernization flow and must never run before both audits
+are finished. The order is Legacy audit and report, then Modernized audit and report, then this
+comparison. It is the golden rule in `security-code-review/SKILL.md`. Before anything else,
+including the cost watermark, run the gate:
+
+```bash
+bash <this skill>/bin/phase-gate.sh --legacy <legacy findings.json> --modernized <modernized findings.json>
+```
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File "<this skill>\bin\phase-gate.ps1" -Legacy <legacy findings.json> -Modernized <modernized findings.json>
+```
+
+It checks what is on disk. For each side, the findings document must exist with its cost merged,
+and the HTML report must be rendered from it. In the orchestrated layout, the Modernized phase must
+also have started after the Legacy report was written.
+
+- **Exit 0 (PASS):** continue with the preconditions below.
+- **Exit 3 (BLOCKED):** **stop immediately.** Do not create `.security-audit/comparison/`, do not set
+  a watermark, and do not write a comparison. Relay the gate's reason and say which phase has to
+  finish first. Never edit files, touch timestamps or re-render reports to get past the gate. The
+  gate is the guard rail, not an obstacle.
+
 ## Preconditions — check these before doing any work
 
 1. **Both files exist and parse as JSON.** If either fails, stop and say which one. Do not attempt a
@@ -260,6 +285,7 @@ two things a reader must not miss. Do not paste the report into the terminal.
 - **Report what you could not compare.** Unmapped functional areas, `category-only` degradation,
   rejected pairings, unassessed categories on either side — all belong in Limitations.
 - **Read-only.** This skill reads two audits and writes one report. It never edits either codebase.
+- **Last, never early.** Run the phase gate before anything else. If it refuses, stop.
 
 ---
 
@@ -267,6 +293,8 @@ two things a reader must not miss. Do not paste the report into the terminal.
 
 ```
 SKILL.md                              this file
+bin/phase-gate.sh / phase-gate.ps1    refuses to start until both audits finished, in order - run first
+tests/test_phase_gate.py              phase-gate regression tests (maintainers only)
 references/matching-protocol.md       how findings are paired and bucketed - read it in full
 references/comparison-schema.md       the comparison.json contract the template renders
 assets/compare.part1.html             report template, head half (shared stylesheet + comparison styles)

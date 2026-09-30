@@ -17,6 +17,40 @@ folder:
 **Zero installs. Never ask the user to install anything.** This skill orchestrates two skills that
 are themselves dependency-free. It needs a shell and nothing else.
 
+## Golden rule: the order of operations
+
+**Every run follows this order, whichever way it is started (local UI, `claude -p` / CI, or an
+interactive VS Code session). There are no exceptions and no shortcuts:**
+
+```
+1. Inputs      the user supplies the project name and paths (UI form, CLI flags, or Step 1)
+2. Trigger     the plan is confirmed (Step 2, or --yes) and report creation starts
+3. Legacy      the legacy tree is audited AND its Legacy report is written        (Phase A)
+4. Modernized  only then is the modernized tree audited AND its report written    (Phase B)
+5. Comparison  only then does security-audit-compare start, reading the two
+               completed audits                                                   (Phase C)
+```
+
+What this forbids, explicitly:
+
+- **Starting the comparison early.** Do not invoke, load or read `security-audit-compare` (its
+  `SKILL.md` or references included), and do not create `.security-audit/comparison/`, until the
+  Modernized report is on disk. A Legacy report alone is never enough.
+- **Starting the modernized audit before the Legacy report exists.** Phase A is finished when its
+  HTML report is written, not when its findings are drafted.
+- **Running phases concurrently.** No background agents, subagents or parallel tool calls running two
+  phases at once. One phase at a time, in the order above.
+- **Reordering to save time or tokens.** The order is part of the product, not an optimisation.
+
+It is enforced mechanically, not just stated here. `security-audit-compare` starts with
+`bin/phase-gate.sh` / `phase-gate.ps1`, which refuses (exit 3) unless both audits have finished, in
+order, on disk. The local UI also watches the output folder and stops a run that breaks the order.
+**If the gate refuses, stop. Do not work around it, edit files to satisfy it, or render a comparison
+anyway.** Report which phase is missing and why.
+
+With no legacy path, steps 3 and 5 are skipped and the run produces the Modernized report only. If
+Phase A fails, Phase B still runs and Phase C is skipped: the comparison needs both completed audits.
+
 ## Skills this orchestrates
 
 | Skill | Role | Required |
@@ -174,6 +208,11 @@ If the user declines, stop. Do not offer a reduced version unprompted.
     run.json           this run's manifest
 ```
 
+At this step, create only the project folder and `.security-audit/`. Each phase creates its own
+subfolder when it starts, so `comparison/` does not exist until Phase C begins. Do not list, read or
+otherwise touch `security-audit-compare` here either; it is not needed until Phase C (see the
+[golden rule](#golden-rule-the-order-of-operations)).
+
 The three HTML reports land directly in `<out>/<Project name>/` so the folder opens clean. The
 `.security-audit/` working directory holds the machine-readable record — it is what makes a re-run
 cheap, what feeds `--baseline` on the next audit, and what the comparison phase reads.
@@ -219,6 +258,11 @@ Produces: `<Project> - Modernized - Security analysis report. - <date>.html`
 
 ### Phase C — Comparison  *(only when both audits completed)*
 
+Start this phase only once the Modernized report file exists. Until then, do not invoke or read
+`security-audit-compare` at all (see the [golden rule](#golden-rule-the-order-of-operations)). The
+comparison skill runs its phase gate first. If the gate refuses, the run ends without a comparison,
+and the summary says why.
+
 ```
 /security-audit-compare
   --legacy      <project folder>/.security-audit/legacy/findings.json
@@ -231,8 +275,11 @@ Produces: `<Project> - Comparison - Security analysis report. - <date>.html`
 
 ### Phase rules
 
-- **Sequential, always.** Phase C reads what A and B wrote. Running the two audits concurrently
-  would also make the per-phase cost watermarks overlap and the segmented figures meaningless.
+- **Sequential, always: A, then B, then C.** This is the golden rule above. Phase C reads what A and
+  B wrote. Running phases concurrently would also make the per-phase cost watermarks overlap and
+  the segmented figures meaningless.
+- **Announce a phase only when it starts.** Do not print "Phase C" or "comparison" as a status line
+  while A or B is still running. Saying what comes next is fine inside a sentence.
 - **Each phase is confined to its own ROOT.** The legacy audit never reads the modernized tree and
   vice versa. Scope confinement is per phase, not per run.
 - **A failed phase does not abort the run.** If the legacy audit fails, note it and continue with
@@ -323,6 +370,8 @@ CDN, no network. They can be attached to an email, committed, or served as stati
 
 ## Rules of engagement
 
+- **Legacy, then Modernized, then Comparison. Always.** See the
+  [golden rule](#golden-rule-the-order-of-operations). If the phase gate refuses, stop.
 - **Ask, then confirm, then spend.** Never start an audit on an unvalidated path.
 - **Prove you can read the tree before you audit it.** An unreadable directory and an empty one look
   the same in a report and could not be more different. If reads are denied, stop and say which path

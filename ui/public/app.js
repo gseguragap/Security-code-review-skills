@@ -284,8 +284,13 @@ function finish(d) {
 
   const box = $('#results');
   const list = $('#reportList');
+  const violation = d.violation
+    ? `<p class="hint" style="color:var(--danger, #c0392b)"><strong>Stopped: phase order violation.</strong>
+        ${esc(d.violation)}. The flow must be Legacy audit + report, then Modernized audit + report,
+        then Comparison.</p>`
+    : '';
   if (d.reports && d.reports.length) {
-    list.innerHTML = d.reports.map(r => `
+    list.innerHTML = violation + d.reports.map(r => `
       <a class="report" data-kind="${esc(r.kind)}" target="_blank" rel="noopener"
          href="/report?run=${encodeURIComponent(runId)}&f=${encodeURIComponent(r.file)}">
         <span class="kind">${esc(r.kind)}</span>
@@ -293,7 +298,7 @@ function finish(d) {
         <span class="size">${Math.round(r.size / 1024)} KB</span>
       </a>`).join('');
   } else {
-    list.innerHTML = `<p class="hint">No reports were produced. Read the output above &mdash; the
+    list.innerHTML = violation + `<p class="hint">No reports were produced. Read the output above &mdash; the
       run exited with code ${d.exitCode}.</p>`;
   }
   $('#resultPath').textContent = d.projectDir ? `Saved in ${d.projectDir}` : '';

@@ -219,6 +219,8 @@ foreach ($id in $msgs.Keys) {
     if ($w5 -eq 0 -and $w1 -eq 0 -and $b.cc -gt 0) { $w5 = $b.cc }
 
     $k = $b.model
+    # Client-side placeholder turns carry no billed usage and are not a model.
+    if ($k -eq '<synthetic>') { continue }
     if (-not $agg.ContainsKey($k)) {
         $agg[$k] = @{ messages = 0; input = 0L; w5 = 0L; w1 = 0L; read = 0L; output = 0L }
     }
@@ -229,27 +231,64 @@ foreach ($id in $msgs.Keys) {
 
 # -------------------------------------------------------------------- pricing
 $rates = $null
+$families = $null
 $pricingVersion = 'unknown'
 if (Test-Path $Pricing) {
     $pj = Get-Content $Pricing -Raw | ConvertFrom-Json
     $rates = $pj.models
+    $families = $pj.familyDefaults
     if ($pj.pricingVersion) { $pricingVersion = $pj.pricingVersion }
+}
+
+function Test-Rate { param([string]$key) return ($rates -and $key -and ($rates.PSObject.Properties.Name -contains $key)) }
+
+# Reduce a provider- or context-decorated id to its bare first-party form. Same steps, same
+# order as normalize_model() in cost.py and normalize() in collect-cost.sh.
+function ConvertTo-BareModelId {
+    param([string]$id)
+    $s = $id.ToLowerInvariant()
+    $s = ($s -split '\[', 2)[0]
+    $s = ($s -split '@', 2)[0]
+    $s = $s -replace '^((us|eu|apac|global|jp|au)\.)?(anthropic\.)?', ''
+    $s = $s -replace '-v[0-9]+(:[0-9]+)?$', ''
+    $s = $s -replace '-[0-9]{8}$', ''
+    return $s
+}
+
+# Returns @{ key = <pricing key or $null>; match = exact|normalized|family|none }.
+function Resolve-Rate {
+    param([string]$id)
+    if (Test-Rate $id) { return @{ key = $id; match = 'exact' } }
+    $n = ConvertTo-BareModelId $id
+    if (Test-Rate $n) { return @{ key = $n; match = 'normalized' } }
+    if ($families) {
+        foreach ($fam in ($families.PSObject.Properties.Name | Sort-Object)) {
+            $fk = [string]$families.$fam
+            if ((Test-Rate $fk) -and ($n -match ('(^|-)' + [regex]::Escape($fam) + '(-|$)'))) {
+                return @{ key = $fk; match = 'family' }
+            }
+        }
+    }
+    return @{ key = $null; match = 'none' }
 }
 
 function Esc-Json { param([string]$s) if ($null -eq $s) { return '' } $s.Replace('\', '\\').Replace('"', '\"') }
 
 $rows = New-Object System.Collections.ArrayList
-$grandTokens = 0L; $grandCost = 0.0; $unpriced = 0
+$grandTokens = 0L; $grandCost = 0.0; $unpriced = 0; $priced = 0; $familyRated = 0
 
 foreach ($model in ($agg.Keys | Sort-Object)) {
     $a = $agg[$model]
     $tok = $a.input + $a.w5 + $a.w1 + $a.read + $a.output
     $grandTokens += $tok
 
+    $res = Resolve-Rate $model
     $r = $null
-    if ($rates -and ($rates.PSObject.Properties.Name -contains $model)) { $r = $rates.$model }
+    if ($res.key) { $r = $rates.($res.key) }
 
     if ($r) {
+        $priced++
+        if ($res.match -eq 'family') { $familyRated++ }
         $cIn = $a.input  * [double]$r.input        / 1000000
         $c5  = $a.w5     * [double]$r.cacheWrite5m / 1000000
         $c1  = $a.w1     * [double]$r.cacheWrite1h / 1000000
@@ -261,6 +300,8 @@ foreach ($model in ($agg.Keys | Sort-Object)) {
     {
       "model": "$(Esc-Json $model)",
       "priced": true,
+      "ratedAs": "$(Esc-Json $res.key)",
+      "rateMatch": "$($res.match)",
       "messages": $($a.messages),
       "tokens": { "input": $($a.input), "cacheWrite5m": $($a.w5), "cacheWrite1h": $($a.w1), "cacheRead": $($a.read), "output": $($a.output), "total": $tok },
       "rates": { "input": $('{0:F2}' -f [double]$r.input), "cacheWrite5m": $('{0:F2}' -f [double]$r.cacheWrite5m), "cacheWrite1h": $('{0:F2}' -f [double]$r.cacheWrite1h), "cacheRead": $('{0:F2}' -f [double]$r.cacheRead), "output": $('{0:F2}' -f [double]$r.output) },
@@ -274,6 +315,8 @@ foreach ($model in ($agg.Keys | Sort-Object)) {
     {
       "model": "$(Esc-Json $model)",
       "priced": false,
+      "ratedAs": null,
+      "rateMatch": "none",
       "messages": $($a.messages),
       "tokens": { "input": $($a.input), "cacheWrite5m": $($a.w5), "cacheWrite1h": $($a.w1), "cacheRead": $($a.read), "output": $($a.output), "total": $tok },
       "rates": null,
@@ -282,6 +325,10 @@ foreach ($model in ($agg.Keys | Sort-Object)) {
 "@)
     }
 }
+
+# No priced model means no dollar figure at all - not $0.00, which reads as "free".
+$totalCost = 'null'
+if ($priced -gt 0) { $totalCost = '{0:F4}' -f $grandCost }
 
 $body = @"
 {
@@ -293,8 +340,9 @@ $body = @"
   "byModel": [
 $($rows -join ",`r`n")
   ],
-  "totals": { "totalTokens": $grandTokens, "totalCostUSD": $('{0:F4}' -f $grandCost) },
+  "totals": { "totalTokens": $grandTokens, "totalCostUSD": $totalCost },
   "unpricedModels": $unpriced,
+  "familyRatedModels": $familyRated,
   "pricingVersion": "$(Esc-Json $pricingVersion)",
   "note": "Measured from the session transcript. Assistant messages are deduplicated by message id. Dollar figures use the list rates in assets/pricing.json and exclude any enterprise discount, Batch API discount or partner-platform pricing."
 }

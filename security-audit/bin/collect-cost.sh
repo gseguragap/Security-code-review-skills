@@ -138,20 +138,70 @@ fi
 [ -s "$USAGE_TSV" ] || unmeasured "No assistant turns were found after line $SKIP of the transcript. The watermark does not line up with this session, so no cost can be attributed to it."
 
 # ---------------------------------------------------------------- price it
-# pricing.json keeps one model per line, so a line-oriented lookup is sufficient
-# and keeps this script dependency-free.
+# pricing.json keeps one model (and one familyDefaults entry) per line, so a line-oriented
+# lookup is sufficient and keeps this script dependency-free. Model ids resolve exactly as
+# cost.py resolves them - exact, then normalized, then family - see resolve() below.
 # Paths go through ENVIRON, not -v: awk expands escape sequences in a -v value and would
 # corrupt a Windows path such as C:\Users\... on the way in.
 # The transcript path is printed into cost.json, so it must be JSON-escaped first:
 # a Windows path such as C:\Users\... is full of invalid JSON escapes otherwise.
 COST_PRICING="$PRICING" COST_TRANSCRIPT="$(json_escape "$T")" \
 awk -v started="${STARTED:-unknown}" -v finished="$FINISHED" -v skip="${SKIP:-0}" '
+# Reduce a provider- or context-decorated id to its bare first-party form. Same steps, same
+# order as normalize_model() in cost.py and ConvertTo-BareModelId in collect-cost.ps1.
+function normalize(id,    s) {
+  s = tolower(id)
+  sub(/\[.*/, "", s)
+  sub(/@.*/, "", s)
+  sub(/^(us|eu|apac|global|jp|au)\./, "", s)
+  sub(/^anthropic\./, "", s)
+  sub(/-v[0-9]+(:[0-9]+)?$/, "", s)
+  sub(/-[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]$/, "", s)
+  return s
+}
+# Sets R_key (pricing key, or "" when unpriced) and R_match (exact/normalized/family/none).
+function resolve(id,    n, f, i, j, t, nf, fams) {
+  R_key = ""; R_match = "none"
+  if (id in P_input) { R_key = id; R_match = "exact"; return }
+  n = normalize(id)
+  if (n in P_input) { R_key = n; R_match = "normalized"; return }
+  # Family words in sorted order, as cost.py iterates them.
+  nf = 0
+  for (f in F) fams[++nf] = f
+  for (i = 2; i <= nf; i++) {
+    t = fams[i]
+    for (j = i - 1; j >= 1 && fams[j] > t; j--) fams[j + 1] = fams[j]
+    fams[j + 1] = t
+  }
+  for (i = 1; i <= nf; i++) {
+    f = fams[i]
+    if ((F[f] in P_input) && n ~ ("(^|-)" f "(-|$)")) { R_key = F[f]; R_match = "family"; return }
+  }
+}
 BEGIN {
   FS = "\t"
   pricing = ENVIRON["COST_PRICING"]
   transcript = ENVIRON["COST_TRANSCRIPT"]
-  # ---- load pricing (one model per line) ----
+  pricingVersion = "unknown"
+  infam = 0
+  # ---- load pricing (one model per line, one familyDefaults entry per line) ----
   while ((getline line < pricing) > 0) {
+    if (match(line, /"pricingVersion"[ \t]*:[ \t]*"[^"]*"/)) {
+      s = substr(line, RSTART, RLENGTH)
+      sub(/^"pricingVersion"[ \t]*:[ \t]*"/, "", s); sub(/"$/, "", s)
+      pricingVersion = s
+    }
+    if (line ~ /"familyDefaults"[ \t]*:/) { infam = 1; continue }
+    if (infam) {
+      if (line ~ /}/) { infam = 0; continue }
+      if (match(line, /"[a-z]+"[ \t]*:[ \t]*"[^"]+"/)) {
+        s = substr(line, RSTART, RLENGTH)
+        f = s; sub(/^"/, "", f); sub(/".*/, "", f)
+        k = s; sub(/"$/, "", k); sub(/.*"/, "", k)
+        F[f] = k
+      }
+      continue
+    }
     if (line !~ /"input"[ \t]*:/) continue
     if (!match(line, /"[a-zA-Z0-9._-]+"[ \t]*:[ \t]*\{/)) continue
     key = substr(line, RSTART + 1, RLENGTH - 1)
@@ -167,6 +217,8 @@ BEGIN {
 # ---- accumulate usage rows (subagent rows may repeat a model) ----
 {
   m = $1
+  # Client-side placeholder turns carry no billed usage and are not a model.
+  if (m == "<synthetic>") next
   msgs[m] += $2; inp[m] += $3; w5[m] += $4; w1[m] += $5; rd[m] += $6; out[m] += $7
   models[m] = 1
 }
@@ -179,28 +231,34 @@ END {
   printf "  \"fromLine\": %d,\n", skip
   printf "  \"byModel\": [\n"
 
-  first = 1; grandTokens = 0; grandCost = 0; unpriced = 0
+  first = 1; grandTokens = 0; grandCost = 0; unpriced = 0; priced = 0; familyRated = 0
   for (m in models) {
-    known = (m in P_input)
-    c_in = known ? inp[m] * P_input[m]  / 1000000 : 0
-    c_w5 = known ? w5[m]  * P_cw5[m]    / 1000000 : 0
-    c_w1 = known ? w1[m]  * P_cw1[m]    / 1000000 : 0
-    c_rd = known ? rd[m]  * P_cr[m]     / 1000000 : 0
-    c_ou = known ? out[m] * P_output[m] / 1000000 : 0
+    resolve(m)
+    k = R_key
+    known = (k != "")
+    c_in = known ? inp[m] * P_input[k]  / 1000000 : 0
+    c_w5 = known ? w5[m]  * P_cw5[k]    / 1000000 : 0
+    c_w1 = known ? w1[m]  * P_cw1[k]    / 1000000 : 0
+    c_rd = known ? rd[m]  * P_cr[k]     / 1000000 : 0
+    c_ou = known ? out[m] * P_output[k] / 1000000 : 0
     total = c_in + c_w5 + c_w1 + c_rd + c_ou
     tok = inp[m] + w5[m] + w1[m] + rd[m] + out[m]
     grandTokens += tok
-    if (known) grandCost += total; else unpriced++
+    if (known) { grandCost += total; priced++ } else unpriced++
+    if (R_match == "family") familyRated++
 
     if (!first) printf ",\n"
     first = 0
     printf "    {\n"
     printf "      \"model\": \"%s\",\n", m
     printf "      \"priced\": %s,\n", (known ? "true" : "false")
+    if (known) printf "      \"ratedAs\": \"%s\",\n", k
+    else       printf "      \"ratedAs\": null,\n"
+    printf "      \"rateMatch\": \"%s\",\n", R_match
     printf "      \"messages\": %d,\n", msgs[m]
     printf "      \"tokens\": { \"input\": %d, \"cacheWrite5m\": %d, \"cacheWrite1h\": %d, \"cacheRead\": %d, \"output\": %d, \"total\": %d },\n", inp[m], w5[m], w1[m], rd[m], out[m], tok
     if (known) {
-      printf "      \"rates\": { \"input\": %.2f, \"cacheWrite5m\": %.2f, \"cacheWrite1h\": %.2f, \"cacheRead\": %.2f, \"output\": %.2f },\n", P_input[m], P_cw5[m], P_cw1[m], P_cr[m], P_output[m]
+      printf "      \"rates\": { \"input\": %.2f, \"cacheWrite5m\": %.2f, \"cacheWrite1h\": %.2f, \"cacheRead\": %.2f, \"output\": %.2f },\n", P_input[k], P_cw5[k], P_cw1[k], P_cr[k], P_output[k]
       printf "      \"costUSD\": { \"input\": %.6f, \"cacheWrite5m\": %.6f, \"cacheWrite1h\": %.6f, \"cacheRead\": %.6f, \"output\": %.6f, \"total\": %.6f }\n", c_in, c_w5, c_w1, c_rd, c_ou, total
     } else {
       printf "      \"rates\": null,\n"
@@ -209,8 +267,12 @@ END {
     printf "    }"
   }
   printf "\n  ],\n"
-  printf "  \"totals\": { \"totalTokens\": %d, \"totalCostUSD\": %.4f },\n", grandTokens, grandCost
+  # No priced model means no dollar figure at all - not $0.00, which reads as "free".
+  if (priced) printf "  \"totals\": { \"totalTokens\": %d, \"totalCostUSD\": %.4f },\n", grandTokens, grandCost
+  else        printf "  \"totals\": { \"totalTokens\": %d, \"totalCostUSD\": null },\n", grandTokens
   printf "  \"unpricedModels\": %d,\n", unpriced
+  printf "  \"familyRatedModels\": %d,\n", familyRated
+  printf "  \"pricingVersion\": \"%s\",\n", pricingVersion
   printf "  \"note\": \"Measured from the session transcript. Assistant messages are deduplicated by message id. Dollar figures use the list rates in assets/pricing.json and exclude any enterprise discount, Batch API discount or partner-platform pricing.\"\n"
   print "}"
 }

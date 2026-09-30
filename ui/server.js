@@ -296,14 +296,75 @@ function pushLine(run, line, stream) {
   run.log.push(entry);
   if (run.log.length > 5000) run.log.shift();
   broadcast(run, 'line', entry);
+}
 
-  // Coarse phase tracking, purely for the progress strip. Derived from the skill's own
-  // announcements; if the wording drifts the log still shows everything.
-  const l = line.toLowerCase();
-  const set = (k, v) => { if (run.phases[k] !== 'done') { run.phases[k] = v; broadcast(run, 'phases', run.phases); } };
-  if (/phase a|legacy audit/.test(l)) set('legacy', 'running');
-  if (/phase b|modernized audit/.test(l)) { run.phases.legacy = run.phases.legacy === 'running' ? 'done' : run.phases.legacy; set('modernized', 'running'); }
-  if (/phase c|comparison/.test(l)) { run.phases.modernized = run.phases.modernized === 'running' ? 'done' : run.phases.modernized; set('comparison', 'running'); }
+// ------------------------------------------------------------------ phase order guard
+//
+// The golden rule of the flow (security-code-review/SKILL.md): Legacy audit + report, then
+// Modernized audit + report, then Comparison - never overlapping, never reordered.
+//
+// The progress strip used to be driven by words in the log: any line mentioning "comparison"
+// flipped Comparison to running, so "legacy done, next the modernized audit, then the
+// comparison" showed the comparison starting right after the legacy report. It is now driven by
+// what is on disk, which is also what makes enforcement possible: a phase has STARTED when its
+// .security-audit/<phase>/ folder holds a file written during this run, and is DONE when its
+// HTML report exists. Anything written before this run began (an earlier review in the same
+// folder) is ignored.
+const PHASE_ORDER_POLL_MS = 1500;
+const KIND = { legacy: 'Legacy', modernized: 'Modernized', comparison: 'Comparison' };
+
+function phaseArtifacts(run) {
+  const since = run.startedAt;
+  const fresh = p => { try { return fs.statSync(p).mtimeMs >= since; } catch { return false; } };
+  const started = {}, done = {};
+  for (const k of Object.keys(KIND)) {
+    const dir = path.join(run.projectDir, '.security-audit', k);
+    let names = [];
+    try { names = fs.readdirSync(dir); } catch { /* not created yet */ }
+    started[k] = names.some(n => fresh(path.join(dir, n)));
+    done[k] = findReports(run.projectDir).some(r => r.kind === KIND[k] && fresh(path.join(run.projectDir, r.file)));
+    if (done[k]) started[k] = true;
+  }
+  return { started, done };
+}
+
+function orderViolation(run, { started, done }) {
+  const legacyExpected = run.phases.legacy !== 'skipped';
+  if (legacyExpected && started.modernized && !done.legacy)
+    return 'the Modernized audit started before the Legacy report was written';
+  if (started.comparison && !legacyExpected)
+    return 'a comparison started although no legacy path was given - this run produces the Modernized report only';
+  if (started.comparison && !done.legacy)
+    return 'the comparison started before the Legacy report was written';
+  if (started.comparison && !done.modernized)
+    return 'the comparison started before the Modernized report was written';
+  return null;
+}
+
+function watchPhaseOrder(run) {
+  const tick = () => {
+    if (run.status !== 'running') return;
+    const a = phaseArtifacts(run);
+
+    let changed = false;
+    for (const k of Object.keys(KIND)) {
+      if (run.phases[k] === 'skipped') continue;
+      const next = a.done[k] ? 'done' : a.started[k] ? 'running' : 'queued';
+      if (run.phases[k] !== next) { run.phases[k] = next; changed = true; }
+    }
+    if (changed) broadcast(run, 'phases', run.phases);
+
+    const why = orderViolation(run, a);
+    if (why && !run.violation) {
+      run.violation = why;
+      pushLine(run, `PHASE ORDER VIOLATION: ${why}.`, 'err');
+      pushLine(run, 'The flow must be Legacy audit + report, then Modernized audit + report, then Comparison. ' +
+                    'Stopping the run so no out-of-order report is produced.', 'err');
+      try { run.child.kill(); } catch { /* already gone */ }
+    }
+  };
+  run.phaseTimer = setInterval(tick, PHASE_ORDER_POLL_MS);
+  run.phaseTick = tick;
 }
 
 function findReports(dir) {
@@ -350,11 +411,33 @@ const PRICING = (() => {
   for (const f of candidates) {
     try {
       const doc = JSON.parse(fs.readFileSync(f, 'utf8'));
-      if (doc && doc.models) return { models: doc.models, version: doc.pricingVersion || 'unknown' };
+      if (doc && doc.models) return { models: doc.models, families: doc.familyDefaults || {},
+                                      version: doc.pricingVersion || 'unknown' };
     } catch { /* try the next one */ }
   }
-  return { models: {}, version: 'unknown' };
+  return { models: {}, families: {}, version: 'unknown' };
 })();
+
+/**
+ * Pricing key for a model id: exact, then normalized, then family - the same resolution, in
+ * the same order, as bin/cost.py and its twins, so the live estimate and the report agree on
+ * which rate a model gets. Returns null only for an id with no Claude family in it.
+ */
+function rateKey(model) {
+  const has = k => Object.prototype.hasOwnProperty.call(PRICING.models, k);
+  if (has(model)) return model;
+  const n = String(model).toLowerCase()
+    .split('[')[0].split('@')[0]
+    .replace(/^((us|eu|apac|global|jp|au)\.)?(anthropic\.)?/, '')
+    .replace(/-v[0-9]+(:[0-9]+)?$/, '')
+    .replace(/-[0-9]{8}$/, '');
+  if (has(n)) return n;
+  for (const fam of Object.keys(PRICING.families).sort()) {
+    const k = PRICING.families[fam];
+    if (has(k) && new RegExp(`(^|-)${fam}(-|$)`).test(n)) return k;
+  }
+  return null;
+}
 
 /**
  * Record one assistant message's token usage.
@@ -404,21 +487,24 @@ function costSnapshot(run) {
     byModel.set(m.model, a);
   }
 
-  let usd = 0, tokens = 0, priced = true;
+  let usd = 0, tokens = 0, pricedModels = 0;
   const unpriced = [];
   for (const [model, a] of byModel) {
     tokens += a.input + a.output + a.read + a.w5 + a.w1;
-    const r = PRICING.models[model];
-    if (!r) { priced = false; unpriced.push(model); continue; }
+    const key = rateKey(model);
+    const r = key && PRICING.models[key];
+    if (!r) { unpriced.push(model); continue; }
+    pricedModels++;
     usd += (a.input * r.input + a.output * r.output + a.read * r.cacheRead
             + a.w5 * r.cacheWrite5m + a.w1 * r.cacheWrite1h) / 1e6;
   }
 
   return {
     tokens, messages: run.usage.size,
-    usd: run.costUsd != null ? run.costUsd : (byModel.size ? usd : null),
+    // Nothing priced means no dollar figure, never $0.00.
+    usd: run.costUsd != null ? run.costUsd : (pricedModels ? usd : null),
     measured: run.costUsd != null,
-    partial: !priced, unpriced,
+    partial: unpriced.length > 0, unpriced,
     pricingVersion: PRICING.version
   };
 }
@@ -704,6 +790,7 @@ function startRun(cfg) {
   // directory on this list can be written to.
   for (const d of trustedDirs) pushLine(run, `Granted read access to ${d}`, 'out');
   pushLine(run, `Granted write access to ${outDir} (reports and .security-audit/ only)`, 'out');
+  watchPhaseOrder(run);
 
   // stdout is one JSON event per line and goes through the renderer; stderr is plain text
   // from the CLI itself and is passed straight through.
@@ -736,14 +823,18 @@ function startRun(cfg) {
         pushLine(run, `Both the CLI and ${outDir} exist; the executable may be blocked by policy or antivirus.`, 'err');
       }
     }
+    clearInterval(run.phaseTimer);
     run.status = 'failed';
     run.finishedAt = Date.now();
     broadcast(run, 'done', { status: run.status, exitCode: null, reports: [] });
   });
 
   child.on('close', code => {
+    // One last look before settling, so a violation in the final second is not missed.
+    run.phaseTick();
+    clearInterval(run.phaseTimer);
     run.exitCode = code;
-    run.status = code === 0 ? 'done' : 'failed';
+    run.status = code === 0 && !run.violation ? 'done' : 'failed';
     run.finishedAt = Date.now();
     run.reports = findReports(run.projectDir);
 
@@ -762,7 +853,7 @@ function startRun(cfg) {
     broadcast(run, 'phases', run.phases);
     broadcastCost(run, true);
     broadcast(run, 'done', {
-      status: run.status, exitCode: code,
+      status: run.status, exitCode: code, violation: run.violation || null,
       reports: run.reports, projectDir: run.projectDir,
       cost: costSnapshot(run),
       seconds: Math.round((run.finishedAt - run.startedAt) / 1000)
