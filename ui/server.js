@@ -626,6 +626,20 @@ function emitEvent(run, line) {
       broadcastCost(run, true);
       pushLine(run, e.subtype === 'success' ? 'Run finished.' : `Run ended: ${e.subtype || 'unknown'}`,
                e.subtype === 'success' ? 'out' : 'err');
+      // "success" only means the orchestrator's turn ended. If a phase is still mid-flight at
+      // that point it was handed to a background agent, and headless there is no later turn
+      // to collect it or start the next phase. That looked like a finished run once while
+      // ten paid minutes of legacy analysis went nowhere, so say so where it is read.
+      run.phaseTick();
+      {
+        const open = Object.keys(KIND).filter(k => run.phases[k] === 'running');
+        if (open.length) {
+          pushLine(run, `The orchestrator ended its turn with the ${open.map(k => KIND[k]).join(', ')} ` +
+                        'phase still in progress - most likely it was started as a background agent. ' +
+                        'Headless runs cannot resume after the turn ends, so this phase will not complete ' +
+                        'and later phases will not start.', 'err');
+        }
+      }
       return;
 
     // An event type this renderer does not know is still proof the CLI is alive. Silently
