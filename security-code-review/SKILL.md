@@ -40,6 +40,13 @@ What this forbids, explicitly:
   HTML report is written, not when its findings are drafted.
 - **Running phases concurrently.** No background agents, subagents or parallel tool calls running two
   phases at once. One phase at a time, in the order above.
+- **Backgrounding a phase, even one on its own.** Never pass `run_in_background: true` for a phase,
+  and never end your turn while a phase is still in progress. This skill usually runs headless
+  (`claude -p`, as the local UI does), where the run *is* your turn: once it ends, the process
+  reports success and exits. Nothing is left to receive a completion notification or start the
+  next phase, and the background audit is cut off with its analysis paid for and unsaved. If you
+  delegate a phase to keep its context out of yours, use a **foreground** subagent and wait for it
+  to return with the report on disk before you move on.
 - **Reordering to save time or tokens.** The order is part of the product, not an optimisation.
 
 It is enforced mechanically, not just stated here. `security-audit-compare` starts with
@@ -226,6 +233,9 @@ Write `run.json` as you go: project name, both source paths, depth, start time, 
 already on disk let the run resume without repeating what was paid for.
 
 ## Step 4 — Run the phases
+
+Every phase runs in the foreground and finishes (its report written) before the next begins. The
+whole of Step 4 happens inside this one turn. See the golden rule: no backgrounded phases.
 
 ### Phase A — Legacy audit  *(skip entirely if no legacy path)*
 

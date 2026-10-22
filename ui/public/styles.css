@@ -229,10 +229,14 @@ input[type="text"]:focus, select:focus, .btn:focus-visible, .log:focus-visible {
 
 @keyframes spin { to { transform: rotate(360deg); } }
 
-/* Motion is decoration here - the text beside it carries the state. */
+/* Reduced motion swaps rotation for a slow fade rather than removing the indicator. Windows
+   reports reduce whenever "Animation effects" is off, which is the default on many VMs and RDP
+   sessions, and there a frozen spinner read as a dead run. A fade does not move anything. */
+@keyframes fade { 0%,100% { opacity: 1; } 50% { opacity: .3; } }
 @media (prefers-reduced-motion: reduce) {
-  .activity .spin { animation: none; }
-  .phases li[data-state="running"] .dot { animation: none; }
+  .activity .spin { animation: fade 1.6s ease-in-out infinite; border-color: var(--accent); }
+  .activity.stalled .spin, .activity.ended .spin { animation: none; }
+  .phases li[data-state="running"] .dot { animation: fade 1.6s ease-in-out infinite; }
 }
 
 /* ------------------------------------------------------------------ cost */
