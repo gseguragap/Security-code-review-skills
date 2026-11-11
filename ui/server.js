@@ -260,6 +260,48 @@ function skillRoots() {
               .map(r => canonicalDir(r));
 }
 
+/**
+ * Installed skills that no longer match this repo. The run loads the copy in the skills
+ * folder, not the one in this checkout, so a fix committed here does nothing until it is
+ * reinstalled - and nothing says so. A September install once ran a whole review without the
+ * "never background a phase" rule and lost the Modernized audit to it. Warn, do not block:
+ * running an older install on purpose is legitimate, doing it by accident is not.
+ */
+const REPO = path.join(__dirname, '..');
+const SUITE = ['security-audit', 'security-audit-compare', 'security-code-review'];
+
+function listFiles(dir, rel = '') {
+  let out = [];
+  for (const e of fs.readdirSync(path.join(dir, rel), { withFileTypes: true })) {
+    if (e.name === '__pycache__') continue;
+    const r = path.join(rel, e.name);
+    out = e.isDirectory() ? out.concat(listFiles(dir, r)) : out.concat(r);
+  }
+  return out;
+}
+
+function staleSkills() {
+  const stale = [];
+  for (const root of skillRoots()) {
+    for (const s of SUITE) {
+      const src = path.join(REPO, s), dst = path.join(root, s);
+      if (!fs.existsSync(path.join(src, 'SKILL.md'))) continue;   // not running from the repo
+      if (!fs.existsSync(dst)) { stale.push({ skill: s, root, reason: 'not installed' }); continue; }
+      let differ = 0, missing = 0;
+      for (const f of listFiles(src)) {
+        const d = path.join(dst, f);
+        if (!fs.existsSync(d)) missing++;
+        else if (!fs.readFileSync(path.join(src, f)).equals(fs.readFileSync(d))) differ++;
+      }
+      if (differ || missing) {
+        stale.push({ skill: s, root, reason: [differ && `${differ} changed`, missing && `${missing} missing`]
+          .filter(Boolean).join(', ') });
+      }
+    }
+  }
+  return stale;
+}
+
 function preflight() {
   const where = [];
   const userSkill = path.join(os.homedir(), '.claude', 'skills', SKILL, 'SKILL.md');
@@ -276,6 +318,7 @@ function preflight() {
   return {
     skillInstalled: where.length > 0,
     skillPaths: where,
+    skillsStale: staleSkills(),
     cli,
     cliBin: CLAUDE_BIN,
     cliWarning: batchShimProblem(CLAUDE_BIN),
@@ -1078,6 +1121,12 @@ server.listen(PORT, HOST, () => {
   console.log(`  claude CLI  ${pre.cli || `NOT FOUND (tried "${pre.cliBin}")`}`);
   console.log(`  skill       ${pre.skillInstalled ? pre.skillPaths[0] : `NOT INSTALLED - run install.ps1 / install.sh`}`);
   console.log(`  cwd         ${pre.cwd}`);
+  if (pre.skillsStale.length) {
+    console.log('');
+    console.log('  WARNING: installed skills differ from this repo - runs will use the installed copy:');
+    for (const s of pre.skillsStale) console.log(`    ${s.skill.padEnd(24)} ${s.reason}  (${s.root})`);
+    console.log('  Reinstall with install.ps1 -Force / install.sh --force.');
+  }
   console.log('');
   console.log('  Bound to loopback only. Ctrl+C to stop.');
   console.log('');

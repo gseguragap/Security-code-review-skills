@@ -31,7 +31,9 @@ Then open <http://127.0.0.1:7099>.
 | **Claude Code CLI** | On `PATH` as `claude`, or set `CLAUDE_BIN` to its full path. **Must be a real executable, not a `.cmd`/`.bat` shim** — see below |
 | **The skills** | Installed via `install.ps1` / `install.sh` |
 
-The status pills at the top of the page check all three and tell you which is missing. The UI is the
+The status pills at the top of the page check all three and tell you which is missing. When the
+server runs from this repo, the skill pill also turns amber if the installed skills differ from the
+repo's copies: a run loads the installed copy, so an unreinstalled fix does nothing. The UI is the
 only part of this project that needs Node; the skills themselves remain dependency-free.
 
 ```bash

@@ -33,11 +33,13 @@ async function preflight() {
   try {
     const pre = await (await fetch('/api/preflight')).json();
     const pill = (ok, label, value) =>
-      `<span class="pf ${ok ? 'ok' : 'bad'}"><span class="dot"></span>${label} <b>${esc(value)}</b></span>`;
+      `<span class="pf ${ok === 'warn' ? 'warn' : ok ? 'ok' : 'bad'}"><span class="dot"></span>${label} <b>${esc(value)}</b></span>`;
+    const stale = pre.skillsStale || [];
     box.innerHTML =
       pill(true, 'node', pre.node) +
       pill(!!pre.cli, 'claude', pre.cli || `not found (${pre.cliBin})`) +
-      pill(pre.skillInstalled, 'skill', pre.skillInstalled ? 'installed' : 'not installed');
+      pill(!pre.skillInstalled ? false : stale.length ? 'warn' : true, 'skill',
+           !pre.skillInstalled ? 'not installed' : stale.length ? 'out of date' : 'installed');
 
     if (!fields.outDir.placeholder || fields.outDir.placeholder.startsWith('(')) {
       fields.outDir.placeholder = pre.cwd;
@@ -46,6 +48,10 @@ async function preflight() {
       msg('The Claude Code CLI was not found. Start the server with CLAUDE_BIN=<full path> node ui/server.js, or put it on PATH.');
     } else if (!pre.skillInstalled) {
       msg('The security-code-review skill is not installed. Run install.ps1 or install.sh, then reload.');
+    } else if (stale.length) {
+      msg('The installed skills differ from this repo, and a run uses the installed copy: ' +
+          stale.map(s => `${s.skill} (${s.reason})`).join('; ') +
+          '. Reinstall with install.ps1 -Force or install.sh --force, then reload.');
     }
   } catch {
     box.innerHTML = '<span class="pf bad"><span class="dot"></span>server unreachable</span>';

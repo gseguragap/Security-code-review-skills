@@ -65,6 +65,8 @@ body {
 .pf.ok  .dot { background: var(--good); }
 .pf.bad .dot { background: var(--bad); }
 .pf.bad { border-color: #5c2b2b; }
+.pf.warn .dot { background: var(--warn); }
+.pf.warn { border-color: #5c4a1f; }
 
 /* ----------------------------------------------------------------- cards */
 .card {
