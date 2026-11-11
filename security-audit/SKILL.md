@@ -464,6 +464,11 @@ migration, two things change:
 - **No false comfort.** "No findings in category X" is reportable only if X was actually checked.
   Otherwise it is "not assessed".
 - **The score serves the reader.** Do not tune weights to produce a nicer number.
+- **Workers run in the foreground.** If you split the audit across subagents, launch each with
+  `run_in_background: false` and do not end your turn until every one has returned. This skill
+  usually runs headless (`claude -p`), where background agents still running ten minutes after the
+  turn ends are killed — their analysis paid for and lost. Parallel foreground workers in one
+  message are fine.
 
 ---
 
